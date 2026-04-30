@@ -1,0 +1,353 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { LayoutDashboard, BookOpen, QrCode, Clock, Plus, Zap, Calendar as CalendarIcon, Settings, CheckCircle2, Brain, Loader2, Award } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Html5QrcodeScanner } from 'html5-qrcode';
+import { useRouter } from 'next/navigation';
+import AvailabilityManager from '@/components/AvailabilityManager';
+import GamificationManager from '@/components/GamificationManager';
+import QuizInterface from '@/components/QuizInterface';
+import DashboardShell from '@/components/DashboardShell';
+
+export default function StudentDashboard({ 
+  enrollments = [], 
+  initialAvailability = [],
+  initialSessions = [],
+  gamification = null 
+}: { 
+  enrollments?: any[],
+  initialAvailability?: any[],
+  initialSessions?: any[],
+  gamification?: any
+}) {
+  const [view, setView] = useState<'overview' | 'calendar' | 'availability' | 'scanner' | 'medals'>('overview');
+  const [sessions, setSessions] = useState(initialSessions);
+  const [userData, setUserData] = useState(gamification?.user || { xp: 0, level: 1, streak: 0 });
+  const [isQuizLoading, setIsQuizLoading] = useState(false);
+  const [activeQuiz, setActiveQuiz] = useState<any>(null);
+  const router = useRouter();
+
+  // Gestión de Notificaciones del Navegador
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Escáner QR - Corregido para evitar errores de DOM
+  useEffect(() => {
+    let scanner: any = null;
+    if (view === 'scanner') {
+      const initScanner = () => {
+        const element = document.getElementById("reader");
+        if (element) {
+          scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+          scanner.render((decodedText: string) => { 
+            scanner.clear(); 
+            router.push(decodedText); 
+          }, (error: any) => {});
+        } else {
+          setTimeout(initScanner, 100);
+        }
+      };
+      
+      initScanner();
+      
+      return () => {
+        if (scanner) {
+          scanner.clear().catch((err: any) => {});
+        }
+      };
+    }
+  }, [view, router]);
+
+  const handleStartQuiz = async (subjectId: number, topicId?: number) => {
+    setIsQuizLoading(true);
+    try {
+      const resp = await fetch('/api/quizzes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId, topicId }),
+        credentials: 'include'
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        setActiveQuiz(data);
+      } else {
+        alert(data.error || "No se pudo generar el quiz");
+      }
+    } catch (e) {
+      alert("Error de conexión. Verifica tu internet.");
+    } finally {
+      setIsQuizLoading(false);
+    }
+  };
+
+  const handleQuizComplete = (result: any) => {
+    if (result.leveledUp && "Notification" in window && Notification.permission === "granted") {
+      new Notification('¡Subiste de nivel!', { body: `Ahora eres Nivel ${result.level}` });
+    }
+    // NO cerrar el modal aquí — dejar que el usuario vea su resultado
+    // El modal se cierra cuando el usuario pulsa "Cerrar Desafío" via onClose
+  };
+
+  const handleQuizClose = () => {
+    setActiveQuiz(null);
+    // Recargar la página para obtener datos frescos de XP y nivel
+    window.location.reload();
+  };
+
+  const navItems = [
+    { id: 'overview', label: 'Mi Progreso', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: 'medals', label: 'Mis Logros', icon: <Award className="w-5 h-5" />, accent: true },
+    { id: 'calendar', label: 'Mi Calendario', icon: <CalendarIcon className="w-5 h-5" /> },
+    { id: 'availability', label: 'Disponibilidad', icon: <Settings className="w-5 h-5" /> },
+    { id: 'scanner', label: 'Escanear Plan', icon: <QrCode className="w-5 h-5" />, accent: true },
+  ];
+
+  return (
+    <>
+      <DashboardShell
+        title="Ares Estudiante"
+        navItems={navItems}
+        activeView={view}
+        onViewChange={(v) => setView(v as any)}
+      >
+        <AnimatePresence mode="wait">
+          {view === 'overview' && (
+            <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              {/* Header */}
+              <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-10">
+                <div className="min-w-0">
+                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight flex flex-wrap items-center gap-2 sm:gap-4">
+                       <span className="truncate">¡Hola, {userData.name}!</span> <span>✨</span>
+                       <span className="bg-primary/10 text-primary text-[10px] sm:text-xs px-3 py-1 rounded-full border border-primary/20 shrink-0">NV. {userData.level}</span>
+                    </h2>
+                    <p className="text-foreground/60 font-medium font-mono text-xs sm:text-sm mt-1">Llevas una racha de {userData.streak} días de estudio.</p>
+                </div>
+                <button onClick={() => setView('scanner')} className="bg-primary text-white font-bold px-5 py-3 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-primary/20 hover:scale-105 transition-all text-sm shrink-0 w-full sm:w-auto">
+                    <Plus className="w-5 h-5" /> Inscribir Materia
+                </button>
+              </header>
+
+              {/* XP Progress Bar */}
+              <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-surface-border mb-6 sm:mb-10 flex items-center gap-4 sm:gap-6">
+                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-foreground text-background rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black shadow-xl shrink-0">
+                    {userData.level}
+                 </div>
+                 <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
+                    <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase text-foreground/40 tracking-widest">
+                       <span>Experiencia</span>
+                       <span>{userData.xp % 1000} / 1000 XP</span>
+                    </div>
+                    <div className="h-3 sm:h-4 bg-background border border-surface-border rounded-full p-0.5 sm:p-1 overflow-hidden">
+                       <motion.div initial={{ width: 0 }} animate={{ width: `${(userData.xp % 1000) / 10}%` }} className="h-full bg-gradient-to-r from-primary to-accent rounded-full" />
+                    </div>
+                 </div>
+              </div>
+
+              {/* Stats + Quiz CTA */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
+                 <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border relative overflow-hidden group">
+                    <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><CalendarIcon className="w-24 sm:w-32 h-24 sm:h-32" /></div>
+                    <p className="text-[10px] sm:text-xs font-bold text-foreground/40 uppercase tracking-widest mb-2 font-mono">Sesiones hoy</p>
+                    <div className="flex items-end gap-2">
+                        <span className="text-4xl sm:text-5xl font-black">{sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).length}</span>
+                        <span className="text-xs sm:text-sm font-bold text-green-500 mb-1">Activas</span>
+                    </div>
+                 </div>
+
+                 <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border sm:col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group overflow-hidden bg-gradient-to-br from-primary/5 to-transparent">
+                    <div className="min-w-0">
+                       <p className="text-[10px] sm:text-xs font-bold text-primary uppercase tracking-widest mb-1">Materia Recomendada</p>
+                       <h4 className="text-lg sm:text-2xl font-black italic tracking-tighter">PREPÁRATE PARA EL QUIZ</h4>
+                       <p className="text-xs sm:text-sm text-foreground/40 max-w-xs mt-1 sm:mt-2">Pon a prueba tu conocimiento con una evaluación IA y gana 250 XP.</p>
+                    </div>
+                    <button 
+                       onClick={() => enrollments[0] && handleStartQuiz(enrollments[0].subject.id)}
+                       disabled={isQuizLoading || enrollments.length === 0}
+                       className="p-5 sm:p-8 bg-foreground text-background rounded-2xl sm:rounded-[2rem] shadow-2xl hover:scale-105 active:scale-95 transition-all flex flex-row sm:flex-col items-center gap-2 shrink-0 w-full sm:w-auto justify-center"
+                    >
+                       {isQuizLoading ? <Loader2 className="w-6 sm:w-8 h-6 sm:h-8 animate-spin" /> : <Brain className="w-6 sm:w-8 h-6 sm:h-8" />}
+                       <span className="text-[10px] font-black uppercase tracking-widest">Iniciar Quiz</span>
+                    </button>
+                 </div>
+              </div>
+
+              {/* Materias Inscritas */}
+              <div className="mb-8 sm:mb-12">
+                <h3 className="text-base sm:text-xl font-bold mb-4 sm:mb-6 flex items-center gap-2 font-mono italic uppercase tracking-tighter">
+                  <BookOpen className="w-5 h-5 text-primary" /> MIS MATERIAS
+                </h3>
+                {enrollments.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+                    {enrollments.map((enr: any) => (
+                      <div key={enr.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border hover:border-primary/30 transition-all">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center font-black shrink-0">
+                            {enr.subject.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-sm truncate">{enr.subject.name}</h4>
+                            <p className="text-[10px] text-foreground/40 uppercase tracking-widest">
+                              {enr.subject.evaluations?.length || 0} evaluaciones
+                            </p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => handleStartQuiz(enr.subject.id)}
+                          className="w-full py-2.5 bg-primary/5 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all"
+                        >
+                          Iniciar Quiz
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="glass-panel p-8 sm:p-10 rounded-2xl sm:rounded-[2rem] border border-dashed border-surface-border text-center">
+                    <p className="text-foreground/40 font-medium italic text-sm">No estás inscrito en ninguna materia. ¡Escanea un código QR!</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Sesiones de Hoy */}
+              <h3 className="text-base sm:text-xl font-bold mb-4 sm:mb-6 flex items-center gap-2 font-mono italic uppercase tracking-tighter">
+                <Clock className="w-5 h-5 text-primary" /> TU AGENDA DE HOY
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pb-8 sm:pb-20">
+                {sessions.length > 0 ? (
+                  sessions.slice(0, 4).map((session: any) => (
+                    <div key={session.id} className="p-4 sm:p-6 glass-panel rounded-2xl sm:rounded-3xl border border-surface-border hover:border-primary/40 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 group">
+                       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                          <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-xl font-black transition-all shrink-0 ${session.completed ? 'bg-green-500/10 text-green-500' : 'bg-primary/5 text-primary'}`}>
+                             {session.completed ? <CheckCircle2 className="w-6 sm:w-8 h-6 sm:h-8" /> : session.topic.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                             <h4 className="font-bold text-sm sm:text-base group-hover:text-primary transition-colors truncate">{session.topic.name}</h4>
+                             <p className="text-[10px] sm:text-xs text-foreground/40 font-medium truncate">
+                                {new Date(session.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Sugerido por Ares IA
+                             </p>
+                          </div>
+                       </div>
+                       <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                           <button 
+                              onClick={() => {
+                                const subId = session.topic.document?.subjectId || session.topic.quizzes?.[0]?.subjectId;
+                                if (subId) handleStartQuiz(subId, session.topic.id);
+                              }}
+                              className="p-2.5 sm:p-3 bg-secondary/50 text-secondary-foreground rounded-xl hover:bg-accent hover:text-white transition-all"
+                           >
+                             <Zap className="w-4 sm:w-5 h-4 sm:h-5" />
+                          </button>
+                          <button className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-3 bg-foreground text-background rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all">
+                             ESTUDIAR
+                          </button>
+                       </div>
+                    </div>
+                  ))
+                ) : (
+                   <div className="lg:col-span-2 glass-panel p-10 sm:p-20 rounded-2xl sm:rounded-[3rem] border border-dashed border-surface-border text-center">
+                     <p className="text-foreground/40 font-medium italic text-sm">
+                       {enrollments.length === 0 
+                         ? 'No estás inscrito en ninguna materia. ¡Escanea un código QR!'
+                         : initialAvailability.length === 0
+                           ? 'Configura tu disponibilidad horaria para que Ares genere tu plan de estudio.'
+                           : 'El plan de estudio se generará al guardar tu disponibilidad.'}
+                     </p>
+                     {initialAvailability.length === 0 && enrollments.length > 0 && (
+                       <button onClick={() => setView('availability')} className="mt-4 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:scale-105 transition-all text-sm">
+                         Configurar Disponibilidad
+                       </button>
+                     )}
+                   </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'medals' && (
+            <motion.div key="medals" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+               <header className="mb-6 sm:mb-10">
+                  <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter uppercase">TU LEGADO / LOGROS</h2>
+                  <p className="text-foreground/60 font-medium mt-1 text-sm">Colecciona medallas y demuestra tu disciplina.</p>
+               </header>
+               <GamificationManager 
+                  user={userData} 
+                  achievements={gamification?.achievements || []} 
+                  userAchievements={gamification?.unlockedAchievementIds || []} 
+               />
+            </motion.div>
+          )}
+
+          {view === 'calendar' && (
+            <motion.div key="calendar" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+               <header className="mb-6 sm:mb-10 text-center">
+                  <h2 className="text-2xl sm:text-4xl font-black tracking-tighter italic">AGENDA INTELIGENTE</h2>
+                  <p className="text-foreground/60 font-medium max-w-lg mx-auto mt-2 text-sm">Ares optimiza tu tiempo automáticamente basándose en tus exámenes.</p>
+               </header>
+               <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                  {sessions.map((session: any) => (
+                      <div key={session.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border flex items-center justify-between border-l-4 border-l-primary/50 group gap-3">
+                        <div className="flex gap-3 sm:gap-4 items-center min-w-0">
+                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center font-black shrink-0">{session.topic.name.charAt(0)}</div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold truncate">{session.topic.name}</p>
+                              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">{new Date(session.date).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => {
+                          const subId = session.topic.document?.subjectId || session.topic.quizzes?.[0]?.subjectId;
+                          if (subId) handleStartQuiz(subId);
+                        }} className="p-2 bg-accent/10 text-accent rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0">
+                           <Brain className="w-4 h-4" />
+                        </button>
+                      </div>
+                  ))}
+                  {sessions.length === 0 && (
+                    <div className="glass-panel p-10 rounded-2xl border border-dashed border-surface-border text-center">
+                      <p className="text-foreground/40 italic text-sm">No hay sesiones programadas. Configura tu disponibilidad para generar tu calendario.</p>
+                    </div>
+                  )}
+               </div>
+            </motion.div>
+          )}
+
+          {view === 'availability' && (
+            <motion.div key="availability" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+               <AvailabilityManager initialData={initialAvailability} />
+            </motion.div>
+          )}
+
+          {view === 'scanner' && (
+             <motion.div key="scanner" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="flex flex-col items-center">
+                <div className="max-w-sm sm:max-w-md w-full text-center space-y-6 sm:space-y-8">
+                   <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter">ESCANEAR CÓDIGO ARES</h2>
+                   <div id="reader" className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary border-dashed p-3 sm:p-4 flex items-center justify-center relative overflow-hidden shadow-2xl">
+                     <p className="text-primary font-bold animate-pulse text-xs uppercase tracking-widest">Activando Sensor de Visión...</p>
+                   </div>
+                   <button onClick={() => setView('overview')} className="w-full sm:w-auto px-10 py-4 bg-surface border border-surface-border text-foreground font-black rounded-2xl">Cancelar</button>
+                </div>
+             </motion.div>
+          )}
+        </AnimatePresence>
+      </DashboardShell>
+
+      {/* Modal Quiz / Overlays — outside DashboardShell so it covers everything */}
+      <AnimatePresence>
+        {activeQuiz && (
+          <motion.div 
+             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+             className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 overflow-auto"
+          >
+             <QuizInterface 
+                quiz={activeQuiz} 
+                onClose={handleQuizClose} 
+                onComplete={handleQuizComplete}
+             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}

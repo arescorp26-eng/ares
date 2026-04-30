@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PROFESSOR
+  STUDENT
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(STUDENT)
+  
+  // Gamificación
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  streak    Int      @default(0)
+  lastActive DateTime?
+  
+  // Como Profesor
+  subjectsCreated Subject[] @relation("ProfessorSubjects")
+  
+  // Como Estudiante
+  enrollments     Enrollment[]
+  sessions        StudySession[]
+  availability    Availability[]
+  notifications   Notification[]
+  quizResults     UserQuizResult[]
+  achievements    UserAchievement[]
+  
+  createdAt DateTime @default(now())
+}
+
+model Subject {
+  id          Int      @id @default(autoincrement())
+  name        String
+  
+  professorId Int
+  professor   User     @relation("ProfessorSubjects", fields: [professorId], references: [id])
+  
+  documents   Document[]
+  evaluations Evaluation[]
+  enrollments Enrollment[]
+  quizzes     Quiz[]
+  createdAt   DateTime @default(now())
+}
+
+model Enrollment {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  subjectId Int
+  student   User     @relation(fields: [studentId], references: [id])
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, subjectId])
+}
+
+model Document {
+  id          Int      @id @default(autoincrement())
+  title       String
+  fileUrl     String?  
+  textContent String?  @db.LongText
+  summary     String?  @db.Text
+  glossary    String?  @db.Text
+  subjectId   Int
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  topics      Topic[]
+}
+
+model Evaluation {
+  id          Int      @id @default(autoincrement())
+  title       String   
+  date        DateTime
+  weight      Float?   
+  subjectId   Int
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  topics      Topic[]
+}
+
+model Topic {
+  id             Int      @id @default(autoincrement())
+  name           String
+  difficulty     Int      @default(1) 
+  estimatedHours Float?
+  documentId     Int?
+  document       Document? @relation(fields: [documentId], references: [id])
+  evaluationId   Int?
+  evaluation     Evaluation? @relation(fields: [evaluationId], references: [id])
+  studySessions  StudySession[]
+  quizzes        Quiz[]
+}
+
+model StudySession {
+  id           Int      @id @default(autoincrement())
+  date         DateTime
+  durationMins Int
+  topicId      Int
+  topic        Topic    @relation(fields: [topicId], references: [id])
+  studentId    Int
+  student      User     @relation(fields: [studentId], references: [id])
+  completed    Boolean  @default(false)
+}
+
+model Availability {
+  id        Int      @id @default(autoincrement())
+  dayOfWeek Int      // 0-6
+  startTime String   // HH:mm
+  endTime   String   // HH:mm
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  message   String
+  sentAt    DateTime @default(now())
+  read      Boolean  @default(false)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// Fase 5: Quizzes e IA Challenges
+model Quiz {
+  id          Int      @id @default(autoincrement())
+  title       String
+  topicId     Int?
+  topic       Topic?    @relation(fields: [topicId], references: [id])
+  subjectId   Int
+  subject     Subject  @relation(fields: [subjectId], references: [id])
+  questions   Question[]
+  results     UserQuizResult[]
+  createdAt   DateTime @default(now())
+}
+
+model Question {
+  id          Int      @id @default(autoincrement())
+  text        String   @db.Text
+  explanation String?  @db.Text
+  quizId      Int
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  options     Option[]
+}
+
+model Option {
+  id          Int      @id @default(autoincrement())
+  text        String
+  isCorrect   Boolean  @default(false)
+  questionId  Int
+  question    Question @relation(fields: [questionId], references: [id])
+}
+
+model UserQuizResult {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  quizId    Int
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  score     Float
+  xpGained  Int
+  createdAt DateTime @default(now())
+}
+
+model Achievement {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  icon        String   // Slug de Lucide Icon
+  xpBonus     Int      @default(50)
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
+  achievementId Int
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  unlockedAt    DateTime @default(now())
+}

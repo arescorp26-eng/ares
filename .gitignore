@@ -1,0 +1,59 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Testing
+/coverage
+
+# Next.js build output
+/.next/
+/out/
+
+# Production build
+/build
+
+# Misc
+.DS_Store
+*.pem
+Thumbs.db
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Env files — NEVER commit real secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma generated client (rebuilt at deploy time)
+/src/generated/
+
+# AI/editor tooling
+.aider*
+.claude
+.ai-context/
+.aider.tags.cache.v4/
+CLAUDE.md
+AI_MEMORY.md
+
+# Scratch/dev files
+scratch/
+student_management.py
+plan_estudio_matematica.pdf
