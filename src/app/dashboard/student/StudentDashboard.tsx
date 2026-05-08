@@ -37,6 +37,7 @@ export default function StudentDashboard({
 
   // Escáner QR - Implementación robusta con Html5Qrcode directo
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const cameraContainerId = 'qr-camera-container';
   const [scannerState, setScannerState] = useState<'idle' | 'starting' | 'scanning' | 'error'>('idle');
   const [scannerError, setScannerError] = useState('');
   const [hasCamera, setHasCamera] = useState<boolean | null>(null);
@@ -49,7 +50,6 @@ export default function StudentDashboard({
       setCameras(devices);
       setHasCamera(devices.length > 0);
       if (devices.length > 0 && !selectedCamera) {
-        // Preferir cámara trasera
         const rearCamera = devices.find((d: any) => 
           d.label.toLowerCase().includes('back') || 
           d.label.toLowerCase().includes('trasera') ||
@@ -68,9 +68,6 @@ export default function StudentDashboard({
     setScannerError('');
 
     try {
-      const element = document.getElementById('qr-reader');
-      if (!element) return;
-
       // Limpiar scanner anterior si existe
       if (scannerRef.current) {
         try {
@@ -79,7 +76,14 @@ export default function StudentDashboard({
         } catch (e) { /* ignore */ }
       }
 
-      const qr = new Html5Qrcode('qr-reader');
+      // Limpiar el contenedor de cualquier hijo de React antes de iniciar
+      const container = document.getElementById(cameraContainerId);
+      if (!container) return;
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+
+      const qr = new Html5Qrcode(cameraContainerId);
       scannerRef.current = qr;
 
       await qr.start(
@@ -88,10 +92,9 @@ export default function StudentDashboard({
         (decodedText: string) => {
           qr.stop().catch(() => {});
           setScannerState('idle');
-          // Procesar el texto decodificado
           processScannedCode(decodedText);
         },
-        () => {} // Ignorar errores de frame
+        () => {}
       );
       setScannerState('scanning');
     } catch (e: any) {
@@ -108,6 +111,13 @@ export default function StudentDashboard({
         await scannerRef.current.clear();
       } catch (e) { /* ignore */ }
       scannerRef.current = null;
+    }
+    // Limpiar el contenedor al detener
+    const container = document.getElementById(cameraContainerId);
+    if (container) {
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
     }
     setScannerState('idle');
   }, []);
@@ -464,10 +474,15 @@ export default function StudentDashboard({
                      </div>
                    )}
 
-                   {/* Visor de cámara */}
-                   {(scannerState === 'idle' || scannerState === 'starting' || scannerState === 'scanning') && hasCamera !== false && (
-                     <>
-                       <div id="qr-reader" className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary/30 overflow-hidden shadow-2xl relative">
+                    {/* Visor de cámara */}
+                    {(scannerState === 'idle' || scannerState === 'starting' || scannerState === 'scanning') && hasCamera !== false && (
+                      <>
+                        {/* Contenedor externo con overlays de React */}
+                        <div className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary/30 overflow-hidden shadow-2xl relative">
+                          {/* Contenedor interno SOLO para html5-qrcode - vacío, sin hijos de React */}
+                          <div id={cameraContainerId} className="w-full h-full" />
+                          
+                          {/* Overlays posicionados absolutamente sobre la cámara */}
                           {scannerState === 'starting' && (
                             <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
                                <div className="flex flex-col items-center gap-3">
@@ -477,12 +492,12 @@ export default function StudentDashboard({
                             </div>
                           )}
                           {scannerState === 'idle' && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10">
                                <Camera className="w-16 h-16 text-primary/30" />
                                <p className="text-foreground/50 font-bold text-sm">Presiona el botón para iniciar</p>
                             </div>
                           )}
-                       </div>
+                        </div>
 
                        <div className="flex gap-3 w-full">
                           {scannerState === 'scanning' ? (
