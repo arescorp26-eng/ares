@@ -1,7 +1,7 @@
-require('dotenv').config();
-const { PrismaClient } = require('./src/generated/prisma/client');
-const { PrismaMariaDb } = require('@prisma/adapter-mariadb');
-const bcrypt = require('bcryptjs');
+import 'dotenv/config';
+import { PrismaClient } from './src/generated/prisma/client';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import bcrypt from 'bcryptjs';
 
 async function seed() {
   const dbUrl = process.env.DATABASE_URL;
