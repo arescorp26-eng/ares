@@ -1,9 +1,10 @@
 import axios, { AxiosError } from 'axios';
 
 const AI_API_KEY = process.env.AI_API_KEY;
-const MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
+const MODEL = process.env.AI_MODEL || 'qwen3.6-plus';
+const MODEL_FALLBACK = process.env.AI_MODEL_FALLBACK || 'minimax-m2.5-free';
 const API_URL = process.env.AI_API_URL || 'https://opencode.ai/zen/v1/chat/completions';
-const TIMEOUT = 30000;
+const TIMEOUT = 45000;
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
 
@@ -56,13 +57,16 @@ async function callOpenRouter(
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
 
   let lastError: Error | null = null;
+  let usedFallback = false;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const currentModel = usedFallback ? MODEL_FALLBACK : MODEL;
+      
       const response = await axios.post(
         API_URL,
         {
-          model: MODEL,
+          model: currentModel,
           messages,
           temperature: options?.temperature ?? 0.3,
           max_tokens: options?.maxTokens ?? 4096,
@@ -90,7 +94,16 @@ async function callOpenRouter(
       lastError = error;
 
       const status = error?.response?.status;
+      const errorData = error?.response?.data;
       const axiosErr = error as AxiosError;
+
+      // Si es error de créditos y no hemos usado fallback, intentar con modelo free
+      if (status === 402 && !usedFallback && attempt === 0) {
+        console.warn('[OpenRouter] Sin créditos, usando modelo free como fallback...');
+        usedFallback = true;
+        attempt = 0; // Resetear intentos con el nuevo modelo
+        continue;
+      }
 
       // Rate limit — esperar y reintentar
       if (status === 429 && attempt < MAX_RETRIES) {
@@ -130,13 +143,13 @@ async function callOpenRouter(
   const errorData = (lastError as any)?.response?.data;
 
   if (status === 401 || status === 403) {
-    throw new Error('API key de OpenRouter inválida o sin permisos');
+    throw new Error('API key de OpenCode inválida o sin permisos');
   }
   if (status === 429) {
     throw new Error('Límite de peticiones a la IA alcanzado. Espera un momento.');
   }
   if (status === 402) {
-    throw new Error('Créditos de OpenRouter agotados. Recarga tu cuenta.');
+    throw new Error('Sin créditos en OpenCode. Agrega un método de pago o usa un modelo free.');
   }
   if ((lastError as AxiosError)?.code === 'ECONNABORTED') {
     throw new Error('La IA tardó demasiado en responder. Intenta de nuevo.');
