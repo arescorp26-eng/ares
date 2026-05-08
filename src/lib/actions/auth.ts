@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { login as setSession } from '@/lib/auth';
-import { Role } from '@prisma/client';
+import { Role } from '@/generated/prisma/client';
 
 export async function loginAction(formData: FormData) {
   const email = formData.get('email') as string;
