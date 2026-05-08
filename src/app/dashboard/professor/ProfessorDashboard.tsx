@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Plus, Book, QrCode, ChevronRight, LayoutDashboard, ArrowLeft, Sparkles, Edit3, ArrowRight, Loader2, Edit, FileDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import FileUpload from '@/components/FileUpload';
 import ManualPlanBuilder from '@/components/ManualPlanBuilder';
 import SubjectPlanExport from '@/components/SubjectPlanExport';
@@ -14,6 +15,7 @@ type StepState = 'name' | 'method' | 'content';
 type MethodState = 'ai' | 'manual' | null;
 
 export default function ProfessorDashboard({ subjects = [] }: { subjects?: any[] }) {
+  const router = useRouter();
   const [view, setView] = useState<ViewState>('list');
   const [step, setStep] = useState<StepState>('name');
   const [method, setMethod] = useState<MethodState>(null);
@@ -48,6 +50,8 @@ export default function ProfessorDashboard({ subjects = [] }: { subjects?: any[]
       if (resp.ok) {
         setSubjectId(data.id);
         setStep('method');
+        // Refrescar datos del servidor para que la lista se actualice
+        router.refresh();
       }
     } catch (e) {
       console.error(e);
@@ -65,6 +69,7 @@ export default function ProfessorDashboard({ subjects = [] }: { subjects?: any[]
   const handleProcessComplete = (result: any) => {
     setLastAnalysis(result.data);
     setView('success');
+    router.refresh();
   };
 
   const enrollmentLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/enroll/${subjectId}`;
@@ -190,12 +195,12 @@ export default function ProfessorDashboard({ subjects = [] }: { subjects?: any[]
                     subjectId={subjectId!} 
                     initialTopics={activeSubject.documents?.[0]?.topics?.map((t: any) => ({ name: t.name, difficulty: t.difficulty, estimatedHours: t.estimatedHours }))}
                     initialEvaluations={activeSubject.evaluations?.map((ev: any) => ({ title: ev.title, date: new Date(ev.date).toISOString().split('T')[0], weight: ev.weight }))}
-                    onComplete={() => { resetWizard(); setView('list'); }}
+                    onComplete={() => { router.refresh(); resetWizard(); setView('list'); }}
                   />
                 ) : (
                   <div className="space-y-6">
                       <h3 className="text-lg sm:text-xl font-black text-center mb-4 sm:mb-6 italic uppercase">Actualizar plan con PDF</h3>
-                      <FileUpload subjectId={subjectId} onUploadComplete={() => { resetWizard(); setView('list'); }} />
+                      <FileUpload subjectId={subjectId} onUploadComplete={() => { router.refresh(); resetWizard(); setView('list'); }} />
                   </div>
                 )}
              </div>

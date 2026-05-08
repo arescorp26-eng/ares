@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { LayoutDashboard, BookOpen, QrCode, Clock, Plus, Zap, Calendar as CalendarIcon, Settings, CheckCircle2, Brain, Loader2, Award } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { LayoutDashboard, BookOpen, QrCode, Clock, Plus, Zap, Calendar as CalendarIcon, Settings, CheckCircle2, Brain, Loader2, Award, Camera, CameraOff, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { useRouter } from 'next/navigation';
 import AvailabilityManager from '@/components/AvailabilityManager';
 import GamificationManager from '@/components/GamificationManager';
@@ -35,32 +35,137 @@ export default function StudentDashboard({
     }
   }, []);
 
-  // Escáner QR - Corregido para evitar errores de DOM
-  useEffect(() => {
-    let scanner: any = null;
-    if (view === 'scanner') {
-      const initScanner = () => {
-        const element = document.getElementById("reader");
-        if (element) {
-          scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
-          scanner.render((decodedText: string) => { 
-            scanner.clear(); 
-            router.push(decodedText); 
-          }, (error: any) => {});
-        } else {
-          setTimeout(initScanner, 100);
-        }
-      };
-      
-      initScanner();
-      
-      return () => {
-        if (scanner) {
-          scanner.clear().catch((err: any) => {});
-        }
-      };
+  // Escáner QR - Implementación robusta con Html5Qrcode directo
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [scannerState, setScannerState] = useState<'idle' | 'starting' | 'scanning' | 'error'>('idle');
+  const [scannerError, setScannerError] = useState('');
+  const [hasCamera, setHasCamera] = useState<boolean | null>(null);
+  const [cameras, setCameras] = useState<any[]>([]);
+  const [selectedCamera, setSelectedCamera] = useState<string>('');
+
+  const checkCameras = useCallback(async () => {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      setCameras(devices);
+      setHasCamera(devices.length > 0);
+      if (devices.length > 0 && !selectedCamera) {
+        // Preferir cámara trasera
+        const rearCamera = devices.find((d: any) => 
+          d.label.toLowerCase().includes('back') || 
+          d.label.toLowerCase().includes('trasera') ||
+          d.label.toLowerCase().includes('environment')
+        );
+        setSelectedCamera(rearCamera?.id || devices[0].id);
+      }
+    } catch (e) {
+      setHasCamera(false);
     }
-  }, [view, router]);
+  }, [selectedCamera]);
+
+  const startScanner = useCallback(async () => {
+    if (!selectedCamera) return;
+    setScannerState('starting');
+    setScannerError('');
+
+    try {
+      const element = document.getElementById('qr-reader');
+      if (!element) return;
+
+      // Limpiar scanner anterior si existe
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop();
+          await scannerRef.current.clear();
+        } catch (e) { /* ignore */ }
+      }
+
+      const qr = new Html5Qrcode('qr-reader');
+      scannerRef.current = qr;
+
+      await qr.start(
+        selectedCamera,
+        { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+        (decodedText: string) => {
+          qr.stop().catch(() => {});
+          setScannerState('idle');
+          // Procesar el texto decodificado
+          processScannedCode(decodedText);
+        },
+        () => {} // Ignorar errores de frame
+      );
+      setScannerState('scanning');
+    } catch (e: any) {
+      console.error('Error starting scanner:', e);
+      setScannerError(e.message || 'No se pudo iniciar la cámara');
+      setScannerState('error');
+    }
+  }, [selectedCamera]);
+
+  const stopScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        await scannerRef.current.clear();
+      } catch (e) { /* ignore */ }
+      scannerRef.current = null;
+    }
+    setScannerState('idle');
+  }, []);
+
+  const processScannedCode = async (decodedText: string) => {
+    // Intentar extraer subjectId de la URL
+    let subjectId: number | null = null;
+    
+    // Formato: https://domain/enroll/123
+    const enrollMatch = decodedText.match(/\/enroll\/(\d+)/);
+    if (enrollMatch) {
+      subjectId = parseInt(enrollMatch[1]);
+    } else {
+      // Intentar parsear como número directo
+      const num = parseInt(decodedText);
+      if (!isNaN(num)) subjectId = num;
+    }
+
+    if (!subjectId) {
+      setScannerError('Código QR no válido. Debe ser un código de inscripción Ares.');
+      setScannerState('error');
+      return;
+    }
+
+    // Inscribir al estudiante
+    try {
+      const resp = await fetch('/api/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId }),
+        credentials: 'include'
+      });
+      const data = await resp.json();
+      
+      if (resp.ok && data.success) {
+        // Recargar para ver la nueva materia
+        window.location.href = '/dashboard/student';
+      } else {
+        setScannerError(data.error || 'Error al inscribirse');
+        setScannerState('error');
+      }
+    } catch (e: any) {
+      setScannerError('Error de conexión. Verifica tu internet.');
+      setScannerState('error');
+    }
+  };
+
+  // Inicializar scanner cuando se entra a la vista
+  useEffect(() => {
+    if (view === 'scanner') {
+      checkCameras();
+    } else {
+      stopScanner();
+    }
+    return () => {
+      stopScanner();
+    };
+  }, [view, checkCameras, stopScanner]);
 
   const handleStartQuiz = async (subjectId: number, topicId?: number) => {
     setIsQuizLoading(true);
@@ -323,10 +428,86 @@ export default function StudentDashboard({
              <motion.div key="scanner" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="flex flex-col items-center">
                 <div className="max-w-sm sm:max-w-md w-full text-center space-y-6 sm:space-y-8">
                    <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter text-gradient">ESCANEAR CÓDIGO ARES</h2>
-                   <div id="reader" className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary/30 border-dashed p-3 sm:p-4 flex items-center justify-center relative overflow-hidden shadow-2xl">
-                     <p className="text-primary font-bold animate-pulse text-xs uppercase tracking-widest">Activando Sensor de Visión...</p>
-                   </div>
-                   <button onClick={() => setView('overview')} className="w-full sm:w-auto px-10 py-4 bg-surface border-2 border-surface-border text-foreground font-black rounded-2xl hover:border-primary transition-all">Cancelar</button>
+                   
+                   {/* Estado: Sin cámara */}
+                   {hasCamera === false && (
+                     <div className="glass-panel p-8 rounded-2xl sm:rounded-[2rem] border border-red-500/20 bg-red-500/5">
+                        <CameraOff className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                        <p className="text-red-500 font-bold mb-2">No se detectó cámara</p>
+                        <p className="text-foreground/50 text-xs mb-4">Asegúrate de dar permisos de cámara y usar HTTPS.</p>
+                        <button onClick={() => checkCameras()} className="px-6 py-3 bg-primary text-white font-bold rounded-xl text-sm hover:scale-105 transition-all">Reintentar</button>
+                     </div>
+                   )}
+
+                   {/* Estado: Seleccionar cámara */}
+                   {hasCamera === true && scannerState === 'idle' && cameras.length > 1 && (
+                     <div className="glass-panel p-6 rounded-2xl sm:rounded-[2rem] border border-surface-border">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-3 block">Seleccionar Cámara</label>
+                        <select 
+                          value={selectedCamera}
+                          onChange={(e) => setSelectedCamera(e.target.value)}
+                          className="w-full bg-background border-2 border-surface-border p-4 rounded-xl text-sm font-bold outline-none focus:border-primary mb-4"
+                        >
+                          {cameras.map((c: any) => (
+                            <option key={c.id} value={c.id}>{c.label || `Cámara ${c.id.slice(0,8)}...`}</option>
+                          ))}
+                        </select>
+                     </div>
+                   )}
+
+                   {/* Estado: Error */}
+                   {scannerState === 'error' && (
+                     <div className="glass-panel p-8 rounded-2xl sm:rounded-[2rem] border border-red-500/20 bg-red-500/5">
+                        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                        <p className="text-red-500 font-bold mb-2 text-sm">{scannerError}</p>
+                        <button onClick={() => { setScannerError(''); startScanner(); }} className="px-6 py-3 bg-primary text-white font-bold rounded-xl text-sm hover:scale-105 transition-all mt-2">Reintentar</button>
+                     </div>
+                   )}
+
+                   {/* Visor de cámara */}
+                   {(scannerState === 'idle' || scannerState === 'starting' || scannerState === 'scanning') && hasCamera !== false && (
+                     <>
+                       <div id="qr-reader" className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary/30 overflow-hidden shadow-2xl relative">
+                          {scannerState === 'starting' && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                               <div className="flex flex-col items-center gap-3">
+                                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                                  <p className="text-primary font-bold text-xs uppercase tracking-widest">Iniciando cámara...</p>
+                               </div>
+                            </div>
+                          )}
+                          {scannerState === 'idle' && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+                               <Camera className="w-16 h-16 text-primary/30" />
+                               <p className="text-foreground/50 font-bold text-sm">Presiona el botón para iniciar</p>
+                            </div>
+                          )}
+                       </div>
+
+                       <div className="flex gap-3 w-full">
+                          {scannerState === 'scanning' ? (
+                            <button onClick={stopScanner} className="flex-1 py-4 bg-red-500/10 border-2 border-red-500/20 text-red-500 font-black rounded-2xl hover:bg-red-500/20 transition-all text-sm">
+                               Detener Cámara
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={startScanner} 
+                              disabled={!selectedCamera || scannerState === 'starting'}
+                              className="flex-1 py-4 bg-gradient-ares text-white font-black rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all text-sm disabled:opacity-50"
+                            >
+                               {scannerState === 'starting' ? 'Iniciando...' : 'Iniciar Cámara'}
+                            </button>
+                          )}
+                          <button onClick={() => setView('overview')} className="px-6 py-4 bg-surface border-2 border-surface-border text-foreground font-black rounded-2xl hover:border-primary transition-all text-sm">
+                             Cancelar
+                          </button>
+                       </div>
+                     </>
+                   )}
+
+                   <p className="text-[10px] font-bold text-foreground/30 uppercase tracking-widest">
+                     Escanea el código QR de tu profesor para inscribirte
+                   </p>
                 </div>
              </motion.div>
           )}
