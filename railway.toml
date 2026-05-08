@@ -1,9 +1,10 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm run build:migrate"
+buildCommand = "next build"
 
 [deploy]
 startCommand = "node .next/standalone/server.js"
+preDeployCommand = "prisma migrate deploy"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
