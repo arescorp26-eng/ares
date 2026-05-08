@@ -1,9 +1,8 @@
 import axios, { AxiosError } from 'axios';
 
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const MODEL = process.env.OPENROUTER_MODEL || 'openrouter/auto';
-
-const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const AI_API_KEY = process.env.AI_API_KEY;
+const MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
+const API_URL = process.env.AI_API_URL || 'https://opencode.ai/zen/v1/chat/completions';
 const TIMEOUT = 30000;
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
@@ -70,10 +69,8 @@ async function callOpenRouter(
         },
         {
           headers: {
-            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+            'Authorization': `Bearer ${AI_API_KEY}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://ares-ai-tutor.vercel.app',
-            'X-Title': 'Ares IA Tutor',
           },
           signal: controller.signal,
         }
@@ -173,8 +170,8 @@ export interface AIQuizResult {
 // ─── Document Analysis ──────────────────────────────────────
 
 export async function analyzeDocumentContent(text: string): Promise<AIAnalysisResult> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OPENROUTER_API_KEY no configurado');
+  if (!AI_API_KEY) {
+    throw new Error('AI_API_KEY no configurado');
   }
 
   const systemPrompt = `Eres Ares, un Tutor IA experto en análisis académico. Tu función es procesar documentos educativos y extraer información estructurada con precisión.
@@ -222,8 +219,8 @@ export async function generateQuizFromContent(
   text: string,
   subjectName: string
 ): Promise<AIQuizResult> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OPENROUTER_API_KEY no configurado');
+  if (!AI_API_KEY) {
+    throw new Error('AI_API_KEY no configurado');
   }
 
   const questionCount = Math.max(5, Math.min(10, Math.floor(text.length / 300)));
@@ -310,8 +307,8 @@ export async function generatePersonalizedStudyPlan(
   availableHoursPerDay: number,
   daysUntilExam: number
 ): Promise<SmartStudyPlan> {
-  if (!OPENROUTER_API_KEY) {
-    throw new Error('OPENROUTER_API_KEY no configurado');
+  if (!AI_API_KEY) {
+    throw new Error('AI_API_KEY no configurado');
   }
 
   const systemPrompt = `Eres Ares, un coach de estudio y tutor personal. Creas planes de estudio personalizados, 
