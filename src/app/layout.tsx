@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Poppins, Comfortaa } from "next/font/google";
+import VersionChecker from "@/components/VersionChecker";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -40,7 +41,10 @@ export default function RootLayout({
       lang="es"
       className={`${poppins.variable} ${comfortaa.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col overflow-x-hidden">{children}</body>
+      <body className="min-h-full flex flex-col overflow-x-hidden">
+        <VersionChecker />
+        {children}
+      </body>
     </html>
   );
 }
