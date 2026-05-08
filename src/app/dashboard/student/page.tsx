@@ -2,9 +2,11 @@ import { getSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import StudentDashboard from './StudentDashboard';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 export default async function StudentPage() {
-  const session = await getSession();
+  const cookieStore = await cookies();
+  const session = await getSession(cookieStore);
 
   if (!session || session.user.role !== 'STUDENT') {
     redirect('/login');
@@ -25,6 +27,10 @@ export default async function StudentPage() {
       lastActive: true
     }
   });
+
+  if (!user) {
+    redirect('/login');
+  }
 
   // 2. Materias inscritas
   const enrollments = await prisma.enrollment.findMany({

@@ -2,9 +2,11 @@ import { getSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import ProfessorDashboard from './ProfessorDashboard';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 
 export default async function ProfessorPage() {
-  const session = await getSession();
+  const cookieStore = await cookies();
+  const session = await getSession(cookieStore);
 
   // Verificación adicional de seguridad (aunque el middleware ya lo haga)
   if (!session || (session.user.role !== 'PROFESSOR' && session.user.role !== 'ADMIN')) {
