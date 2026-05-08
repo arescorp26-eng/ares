@@ -32,19 +32,33 @@ export default async function StudentPage() {
     redirect('/login');
   }
 
-  // 2. Materias inscritas
+  // 2. Materias inscritas (con evaluaciones ordenadas por fecha)
   const enrollments = await prisma.enrollment.findMany({
     where: { studentId: userId },
     include: {
       subject: {
         include: {
-          evaluations: true,
+          evaluations: {
+            orderBy: { date: 'asc' }
+          },
+          professor: { select: { name: true } },
           documents: { select: { id: true, title: true } }
         }
       }
     },
     orderBy: { createdAt: 'desc' }
   });
+
+  // Extraer todas las evaluaciones futuras ordenadas
+  const upcomingExams = enrollments
+    .flatMap(en => en.subject.evaluations.map(ev => ({
+      ...ev,
+      subjectName: en.subject.name,
+      subjectId: en.subject.id,
+      professorName: en.subject.professor?.name
+    })))
+    .filter(ev => new Date(ev.date) >= new Date())
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // 3. Disponibilidad configurada
   const availability = await prisma.availability.findMany({
@@ -92,6 +106,7 @@ export default async function StudentPage() {
       initialAvailability={availability}
       initialSessions={sessions}
       gamification={gamification}
+      upcomingExams={upcomingExams}
     />
   );
 }

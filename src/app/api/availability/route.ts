@@ -12,12 +12,10 @@ export async function POST(req: NextRequest) {
 
     const { slots } = await req.json();
 
-    // 1. Borrar disponibilidad anterior
     await prisma.availability.deleteMany({
       where: { userId: session.user.id }
     });
 
-    // 2. Guardar nueva disponibilidad
     await prisma.availability.createMany({
       data: slots.map((s: any) => ({
         ...s,
@@ -25,11 +23,35 @@ export async function POST(req: NextRequest) {
       }))
     });
 
-    // 3. Disparar el Smart Scheduler (Automatización total)
+    const enrollments = await prisma.enrollment.findMany({
+      where: { studentId: session.user.id },
+      include: {
+        subject: {
+          include: {
+            evaluations: { include: { topics: true } },
+            documents: { include: { topics: true } }
+          }
+        }
+      }
+    });
+
+    const hasTopics = enrollments.some(en =>
+      en.subject.evaluations.some(ev => ev.topics.length > 0) ||
+      en.subject.documents.some(doc => doc.topics.length > 0)
+    );
+
+    if (!hasTopics) {
+      return NextResponse.json({
+        success: true,
+        message: 'Disponibilidad guardada. Inscríbete en una materia para generar tu plan de estudio.',
+        details: { sessionsCount: 0, needsEnrollment: true }
+      });
+    }
+
     const scheduleResult = await generateSmartSchedule(session.user.id);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: 'Disponibilidad actualizada y calendario generado.',
       details: scheduleResult
     });

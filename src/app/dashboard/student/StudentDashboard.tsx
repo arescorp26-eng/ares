@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { LayoutDashboard, BookOpen, QrCode, Clock, Plus, Zap, Calendar as CalendarIcon, Settings, CheckCircle2, Brain, Loader2, Award, Camera, CameraOff, AlertCircle } from 'lucide-react';
+import { LayoutDashboard, BookOpen, QrCode, Clock, Plus, Zap, Calendar as CalendarIcon, Settings, CheckCircle2, Brain, Loader2, Award, Camera, CameraOff, AlertCircle, Timer, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useRouter } from 'next/navigation';
@@ -14,12 +14,14 @@ export default function StudentDashboard({
   enrollments = [], 
   initialAvailability = [],
   initialSessions = [],
-  gamification = null 
+  gamification = null,
+  upcomingExams = []
 }: { 
   enrollments?: any[],
   initialAvailability?: any[],
   initialSessions?: any[],
-  gamification?: any
+  gamification?: any,
+  upcomingExams?: any[]
 }) {
   const [view, setView] = useState<'overview' | 'calendar' | 'availability' | 'scanner' | 'medals'>('overview');
   const [sessions, setSessions] = useState(initialSessions);
@@ -27,6 +29,20 @@ export default function StudentDashboard({
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<any>(null);
   const router = useRouter();
+
+  const getDaysRemaining = (date: string | Date) => {
+    const now = new Date();
+    const exam = new Date(date);
+    const diff = exam.getTime() - now.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const getUrgencyColor = (days: number) => {
+    if (days <= 1) return 'text-red-500 bg-red-500/10 border-red-500/20';
+    if (days <= 3) return 'text-accent bg-accent/10 border-accent/20';
+    if (days <= 7) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+    return 'text-primary/70 bg-primary/5 border-primary/10';
+  };
 
   // Gestión de Notificaciones del Navegador
   useEffect(() => {
@@ -262,7 +278,41 @@ export default function StudentDashboard({
                  </div>
               </div>
 
-              {/* Stats + Quiz CTA */}
+               {/* Countdown de exámenes próximos */}
+               {upcomingExams.length > 0 && (
+                 <div className="mb-6 sm:mb-10">
+                   <h3 className="text-base sm:text-xl font-bold mb-4 sm:mb-6 flex items-center gap-2 font-mono italic uppercase tracking-tighter">
+                     <Timer className="w-5 h-5 text-accent" /> PRÓXIMOS EXÁMENES
+                   </h3>
+                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                     {upcomingExams.slice(0, 3).map((exam: any) => {
+                       const days = getDaysRemaining(exam.date);
+                       const urgency = getUrgencyColor(days);
+                       return (
+                         <div key={exam.id} className={`p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border-2 ${urgency} shadow-md`}>
+                           <div className="flex items-start justify-between gap-2 mb-2">
+                             <div className="min-w-0">
+                               <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{exam.subjectName}</p>
+                               <h4 className="font-bold text-sm truncate">{exam.title}</h4>
+                             </div>
+                             <div className={`flex flex-col items-center px-2 py-1 rounded-lg border ${urgency} shrink-0`}>
+                               <span className="text-lg sm:text-xl font-black leading-tight">{days}</span>
+                               <span className="text-[8px] font-bold uppercase tracking-widest">{days === 1 ? 'día' : 'días'}</span>
+                             </div>
+                           </div>
+                           <div className="flex items-center gap-2 text-[10px] font-bold opacity-60">
+                             <CalendarIcon className="w-3 h-3" />
+                             <span>{new Date(exam.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                             {exam.weight && <span className="ml-auto">Peso: {exam.weight}%</span>}
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
+                 </div>
+               )}
+
+               {/* Stats + Quiz CTA */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
                  <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border relative overflow-hidden group shadow-lg">
                     <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-primary"><CalendarIcon className="w-24 sm:w-32 h-24 sm:h-32" /></div>
@@ -297,27 +347,51 @@ export default function StudentDashboard({
                 </h3>
                 {enrollments.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-                    {enrollments.map((enr: any) => (
-                      <div key={enr.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border hover:border-primary/40 transition-all shadow-md hover:shadow-lg">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 bg-gradient-ares text-white rounded-xl flex items-center justify-center font-black shrink-0">
-                            {enr.subject.name.charAt(0)}
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-sm truncate">{enr.subject.name}</h4>
-                            <p className="text-[10px] text-foreground/50 uppercase tracking-widest">
-                              {enr.subject.evaluations?.length || 0} evaluaciones
-                            </p>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => handleStartQuiz(enr.subject.id)}
-                          className="w-full py-2.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all"
-                        >
-                          Iniciar Quiz
-                        </button>
-                      </div>
-                    ))}
+                     {enrollments.map((enr: any) => {
+                       const nextExam = enr.subject.evaluations
+                         ?.filter((ev: any) => new Date(ev.date) >= new Date())
+                         .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+                       const daysUntilExam = nextExam ? getDaysRemaining(nextExam.date) : null;
+
+                       return (
+                       <div key={enr.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border hover:border-primary/40 transition-all shadow-md hover:shadow-lg">
+                         <div className="flex items-center gap-3 mb-3">
+                           <div className="w-10 h-10 bg-gradient-ares text-white rounded-xl flex items-center justify-center font-black shrink-0">
+                             {enr.subject.name.charAt(0)}
+                           </div>
+                           <div className="min-w-0">
+                             <h4 className="font-bold text-sm truncate">{enr.subject.name}</h4>
+                             <p className="text-[10px] text-foreground/50 uppercase tracking-widest">
+                               {enr.subject.evaluations?.length || 0} evaluaciones
+                               {enr.subject.professor?.name && <> · {enr.subject.professor.name}</>}
+                             </p>
+                           </div>
+                         </div>
+
+                         {nextExam ? (
+                           <div className={`mb-3 p-2.5 rounded-lg flex items-center justify-between gap-2 ${getUrgencyColor(daysUntilExam!)}`}>
+                             <div className="flex items-center gap-1.5 min-w-0">
+                               <FileText className="w-3 h-3 shrink-0" />
+                               <span className="text-[10px] font-bold truncate">{nextExam.title}</span>
+                             </div>
+                             <span className="text-[10px] font-black shrink-0">{daysUntilExam} {daysUntilExam === 1 ? 'día' : 'días'}</span>
+                           </div>
+                         ) : (
+                           <div className="mb-3 p-2.5 rounded-lg bg-surface/50 border border-surface-border flex items-center gap-1.5">
+                             <FileText className="w-3 h-3 text-foreground/30" />
+                             <span className="text-[10px] font-bold text-foreground/30">Sin exámenes programados</span>
+                           </div>
+                         )}
+
+                         <button 
+                           onClick={() => handleStartQuiz(enr.subject.id)}
+                           className="w-full py-2.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all"
+                         >
+                           Iniciar Quiz
+                         </button>
+                       </div>
+                       );
+                     })}
                   </div>
                 ) : (
                   <div className="glass-panel p-8 sm:p-10 rounded-2xl sm:rounded-[2rem] border border-dashed border-surface-border text-center">
@@ -397,11 +471,37 @@ export default function StudentDashboard({
 
           {view === 'calendar' && (
             <motion.div key="calendar" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-               <header className="mb-6 sm:mb-10 text-center">
-                  <h2 className="text-2xl sm:text-4xl font-black tracking-tighter italic text-gradient">AGENDA INTELIGENTE</h2>
-                  <p className="text-foreground/60 font-medium max-w-lg mx-auto mt-2 text-sm">Ares optimiza tu tiempo automáticamente basándose en tus exámenes.</p>
-               </header>
-               <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                <header className="mb-6 sm:mb-10 text-center">
+                   <h2 className="text-2xl sm:text-4xl font-black tracking-tighter italic text-gradient">AGENDA INTELIGENTE</h2>
+                   <p className="text-foreground/60 font-medium max-w-lg mx-auto mt-2 text-sm">Ares optimiza tu tiempo automáticamente basándose en tus exámenes.</p>
+                </header>
+
+                {upcomingExams.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-black uppercase tracking-widest text-accent mb-3 flex items-center gap-2">
+                      <Timer className="w-4 h-4" /> Exámenes
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {upcomingExams.map((exam: any) => {
+                        const days = getDaysRemaining(exam.date);
+                        const urgency = getUrgencyColor(days);
+                        return (
+                          <div key={exam.id} className={`p-3 sm:p-4 rounded-xl border ${urgency} flex items-center justify-between`}>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate">{exam.title}</p>
+                              <p className="text-[10px] opacity-70">{exam.subjectName} · {new Date(exam.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</p>
+                            </div>
+                            <div className={`px-2 py-1 rounded-lg border ${urgency} ml-2 shrink-0`}>
+                              <span className="text-sm font-black">{days}d</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 sm:gap-4">
                   {sessions.map((session: any) => (
                       <div key={session.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border flex items-center justify-between border-l-4 border-l-primary group gap-3 shadow-md hover:shadow-lg transition-all">
                         <div className="flex gap-3 sm:gap-4 items-center min-w-0">

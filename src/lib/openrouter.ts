@@ -1,9 +1,8 @@
 import axios, { AxiosError } from 'axios';
 
 const AI_API_KEY = process.env.AI_API_KEY;
-const MODEL = process.env.AI_MODEL || 'qwen3.6-plus';
-const MODEL_FALLBACK = process.env.AI_MODEL_FALLBACK || 'minimax-m2.5-free';
-const API_URL = process.env.AI_API_URL || 'https://opencode.ai/zen/v1/chat/completions';
+const MODEL = process.env.AI_MODEL || 'deepseek-chat';
+const API_URL = process.env.AI_API_URL || 'https://api.deepseek.com/v1/chat/completions';
 const TIMEOUT = 45000;
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
@@ -57,16 +56,13 @@ async function callOpenRouter(
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
 
   let lastError: Error | null = null;
-  let usedFallback = false;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const currentModel = usedFallback ? MODEL_FALLBACK : MODEL;
-      
       const response = await axios.post(
         API_URL,
         {
-          model: currentModel,
+          model: MODEL,
           messages,
           temperature: options?.temperature ?? 0.3,
           max_tokens: options?.maxTokens ?? 4096,
@@ -94,62 +90,51 @@ async function callOpenRouter(
       lastError = error;
 
       const status = error?.response?.status;
-      const errorData = error?.response?.data;
       const axiosErr = error as AxiosError;
-
-      // Si es error de créditos y no hemos usado fallback, intentar con modelo free
-      if (status === 402 && !usedFallback && attempt === 0) {
-        console.warn('[OpenRouter] Sin créditos, usando modelo free como fallback...');
-        usedFallback = true;
-        attempt = 0; // Resetear intentos con el nuevo modelo
-        continue;
-      }
 
       // Rate limit — esperar y reintentar
       if (status === 429 && attempt < MAX_RETRIES) {
-        console.warn(`[OpenRouter] Rate limited, retrying in ${RETRY_DELAY * (attempt + 1)}ms...`);
+        console.warn(`[DeepSeek] Rate limited, retrying in ${RETRY_DELAY * (attempt + 1)}ms...`);
         await sleep(RETRY_DELAY * (attempt + 1) * 2);
         continue;
       }
 
       // Timeout — reintentar
       if (axiosErr?.code === 'ECONNABORTED' && attempt < MAX_RETRIES) {
-        console.warn(`[OpenRouter] Timeout, retrying (attempt ${attempt + 1})...`);
+        console.warn(`[DeepSeek] Timeout, retrying (attempt ${attempt + 1})...`);
         await sleep(RETRY_DELAY);
         continue;
       }
 
       // Server error — reintentar
       if (status && status >= 500 && attempt < MAX_RETRIES) {
-        console.warn(`[OpenRouter] Server error ${status}, retrying...`);
+        console.warn(`[DeepSeek] Server error ${status}, retrying...`);
         await sleep(RETRY_DELAY * (attempt + 1));
         continue;
       }
 
       // Error de red — reintentar
       if (!status && attempt < MAX_RETRIES) {
-        console.warn(`[OpenRouter] Network error, retrying...`);
+        console.warn(`[DeepSeek] Network error, retrying...`);
         await sleep(RETRY_DELAY);
         continue;
       }
 
-      // No más reintentos
       break;
     }
   }
 
-  // Construir mensaje de error descriptivo
   const status = (lastError as any)?.response?.status;
   const errorData = (lastError as any)?.response?.data;
 
   if (status === 401 || status === 403) {
-    throw new Error('API key de OpenCode inválida o sin permisos');
+    throw new Error('API key de DeepSeek inválida o sin permisos');
   }
   if (status === 429) {
     throw new Error('Límite de peticiones a la IA alcanzado. Espera un momento.');
   }
   if (status === 402) {
-    throw new Error('Sin créditos en OpenCode. Agrega un método de pago o usa un modelo free.');
+    throw new Error('Créditos de DeepSeek agotados. Recarga tu cuenta.');
   }
   if ((lastError as AxiosError)?.code === 'ECONNABORTED') {
     throw new Error('La IA tardó demasiado en responder. Intenta de nuevo.');

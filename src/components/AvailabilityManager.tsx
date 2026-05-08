@@ -51,10 +51,17 @@ export default function AvailabilityManager({ initialData = [] }: { initialData?
       });
       const data = await resp.json();
       if (resp.ok) {
-        const sessionsCount = data.details?.sessionsCount || 0;
-        setMsg(`¡Disponibilidad guardada! Ares generó ${sessionsCount} sesiones de estudio. Redirigiendo...`);
-        // Recargar la página para mostrar las sesiones generadas
-        setTimeout(() => window.location.reload(), 2000);
+        if (data.details?.needsEnrollment) {
+          setMsg('¡Disponibilidad guardada! Inscríbete en una materia para generar tu plan de estudio.');
+        } else {
+          const sessionsCount = data.details?.sessionsCount || 0;
+          if (sessionsCount > 0) {
+            setMsg(`¡Disponibilidad guardada! Ares generó ${sessionsCount} sesiones de estudio. Redirigiendo...`);
+            setTimeout(() => window.location.reload(), 2000);
+          } else {
+            setMsg('Disponibilidad guardada. Agrega temas a tus materias para generar el plan.');
+          }
+        }
       } else {
         setMsg(data.error || 'Error al guardar.');
       }
