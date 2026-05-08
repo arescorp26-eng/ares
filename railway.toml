@@ -1,8 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm run build:migrate"
+buildCommand = "npm run build"
 
 [deploy]
+preDeployCommand = "npx prisma migrate deploy && npm run seed"
 startCommand = "node .next/standalone/server.js"
 healthcheckPath = "/"
 healthcheckTimeout = 30
