@@ -121,53 +121,53 @@ export default function StudentDashboard({
               <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-10">
                 <div className="min-w-0">
                     <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight flex flex-wrap items-center gap-2 sm:gap-4">
-                       <span className="truncate">¡Hola, {userData.name}!</span> <span>✨</span>
+                       <span className="truncate">¡Hola, {userData.name}!</span> <span className="text-accent">⚡</span>
                        <span className="bg-primary/10 text-primary text-[10px] sm:text-xs px-3 py-1 rounded-full border border-primary/20 shrink-0">NV. {userData.level}</span>
                     </h2>
-                    <p className="text-foreground/60 font-medium font-mono text-xs sm:text-sm mt-1">Llevas una racha de {userData.streak} días de estudio.</p>
+                    <p className="text-foreground/60 font-medium font-mono text-xs sm:text-sm mt-1">Llevas una racha de <span className="text-accent font-bold">{userData.streak}</span> días de estudio.</p>
                 </div>
-                <button onClick={() => setView('scanner')} className="bg-primary text-white font-bold px-5 py-3 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-primary/20 hover:scale-105 transition-all text-sm shrink-0 w-full sm:w-auto">
+                <button onClick={() => setView('scanner')} className="bg-gradient-ares text-white font-bold px-5 py-3 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-primary/25 hover:scale-105 transition-all text-sm shrink-0 w-full sm:w-auto">
                     <Plus className="w-5 h-5" /> Inscribir Materia
                 </button>
               </header>
 
               {/* XP Progress Bar */}
-              <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-surface-border mb-6 sm:mb-10 flex items-center gap-4 sm:gap-6">
-                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-foreground text-background rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black shadow-xl shrink-0">
+              <div className="glass-panel p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-surface-border mb-6 sm:mb-10 flex items-center gap-4 sm:gap-6 shadow-lg">
+                 <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-ares text-white rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black shadow-xl shrink-0">
                     {userData.level}
                  </div>
                  <div className="flex-1 min-w-0 space-y-1.5 sm:space-y-2">
-                    <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase text-foreground/40 tracking-widest">
+                    <div className="flex justify-between text-[9px] sm:text-[10px] font-black uppercase text-primary/50 tracking-widest">
                        <span>Experiencia</span>
                        <span>{userData.xp % 1000} / 1000 XP</span>
                     </div>
                     <div className="h-3 sm:h-4 bg-background border border-surface-border rounded-full p-0.5 sm:p-1 overflow-hidden">
-                       <motion.div initial={{ width: 0 }} animate={{ width: `${(userData.xp % 1000) / 10}%` }} className="h-full bg-gradient-to-r from-primary to-accent rounded-full" />
+                       <motion.div initial={{ width: 0 }} animate={{ width: `${(userData.xp % 1000) / 10}%` }} className="h-full bg-gradient-ares-accent rounded-full" />
                     </div>
                  </div>
               </div>
 
               {/* Stats + Quiz CTA */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
-                 <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border relative overflow-hidden group">
-                    <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform"><CalendarIcon className="w-24 sm:w-32 h-24 sm:h-32" /></div>
-                    <p className="text-[10px] sm:text-xs font-bold text-foreground/40 uppercase tracking-widest mb-2 font-mono">Sesiones hoy</p>
+                 <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border relative overflow-hidden group shadow-lg">
+                    <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-primary"><CalendarIcon className="w-24 sm:w-32 h-24 sm:h-32" /></div>
+                    <p className="text-[10px] sm:text-xs font-bold text-primary/50 uppercase tracking-widest mb-2 font-mono">Sesiones hoy</p>
                     <div className="flex items-end gap-2">
-                        <span className="text-4xl sm:text-5xl font-black">{sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).length}</span>
-                        <span className="text-xs sm:text-sm font-bold text-green-500 mb-1">Activas</span>
+                        <span className="text-4xl sm:text-5xl font-black text-primary">{sessions.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).length}</span>
+                        <span className="text-xs sm:text-sm font-bold text-accent mb-1">Activas</span>
                     </div>
                  </div>
 
-                 <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border sm:col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group overflow-hidden bg-gradient-to-br from-primary/5 to-transparent">
+                 <div className="p-5 sm:p-8 glass-panel rounded-2xl sm:rounded-[2rem] border border-surface-border sm:col-span-1 lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group overflow-hidden bg-gradient-to-br from-primary/10 to-accent/5 shadow-lg">
                     <div className="min-w-0">
                        <p className="text-[10px] sm:text-xs font-bold text-primary uppercase tracking-widest mb-1">Materia Recomendada</p>
                        <h4 className="text-lg sm:text-2xl font-black italic tracking-tighter">PREPÁRATE PARA EL QUIZ</h4>
-                       <p className="text-xs sm:text-sm text-foreground/40 max-w-xs mt-1 sm:mt-2">Pon a prueba tu conocimiento con una evaluación IA y gana 250 XP.</p>
+                       <p className="text-xs sm:text-sm text-foreground/50 max-w-xs mt-1 sm:mt-2">Pon a prueba tu conocimiento con una evaluación IA y gana 250 XP.</p>
                     </div>
                     <button 
                        onClick={() => enrollments[0] && handleStartQuiz(enrollments[0].subject.id)}
                        disabled={isQuizLoading || enrollments.length === 0}
-                       className="p-5 sm:p-8 bg-foreground text-background rounded-2xl sm:rounded-[2rem] shadow-2xl hover:scale-105 active:scale-95 transition-all flex flex-row sm:flex-col items-center gap-2 shrink-0 w-full sm:w-auto justify-center"
+                       className="p-5 sm:p-8 bg-gradient-ares text-white rounded-2xl sm:rounded-[2rem] shadow-2xl hover:scale-105 active:scale-95 transition-all flex flex-row sm:flex-col items-center gap-2 shrink-0 w-full sm:w-auto justify-center"
                     >
                        {isQuizLoading ? <Loader2 className="w-6 sm:w-8 h-6 sm:h-8 animate-spin" /> : <Brain className="w-6 sm:w-8 h-6 sm:h-8" />}
                        <span className="text-[10px] font-black uppercase tracking-widest">Iniciar Quiz</span>
@@ -183,21 +183,21 @@ export default function StudentDashboard({
                 {enrollments.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
                     {enrollments.map((enr: any) => (
-                      <div key={enr.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border hover:border-primary/30 transition-all">
+                      <div key={enr.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border hover:border-primary/40 transition-all shadow-md hover:shadow-lg">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center font-black shrink-0">
+                          <div className="w-10 h-10 bg-gradient-ares text-white rounded-xl flex items-center justify-center font-black shrink-0">
                             {enr.subject.name.charAt(0)}
                           </div>
                           <div className="min-w-0">
                             <h4 className="font-bold text-sm truncate">{enr.subject.name}</h4>
-                            <p className="text-[10px] text-foreground/40 uppercase tracking-widest">
+                            <p className="text-[10px] text-foreground/50 uppercase tracking-widest">
                               {enr.subject.evaluations?.length || 0} evaluaciones
                             </p>
                           </div>
                         </div>
                         <button 
                           onClick={() => handleStartQuiz(enr.subject.id)}
-                          className="w-full py-2.5 bg-primary/5 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all"
+                          className="w-full py-2.5 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all"
                         >
                           Iniciar Quiz
                         </button>
@@ -206,7 +206,7 @@ export default function StudentDashboard({
                   </div>
                 ) : (
                   <div className="glass-panel p-8 sm:p-10 rounded-2xl sm:rounded-[2rem] border border-dashed border-surface-border text-center">
-                    <p className="text-foreground/40 font-medium italic text-sm">No estás inscrito en ninguna materia. ¡Escanea un código QR!</p>
+                    <p className="text-foreground/50 font-medium italic text-sm">No estás inscrito en ninguna materia. ¡Escanea un código QR!</p>
                   </div>
                 )}
               </div>
@@ -218,14 +218,14 @@ export default function StudentDashboard({
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 pb-8 sm:pb-20">
                 {sessions.length > 0 ? (
                   sessions.slice(0, 4).map((session: any) => (
-                    <div key={session.id} className="p-4 sm:p-6 glass-panel rounded-2xl sm:rounded-3xl border border-surface-border hover:border-primary/40 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 group">
+                    <div key={session.id} className="p-4 sm:p-6 glass-panel rounded-2xl sm:rounded-3xl border border-surface-border hover:border-primary/40 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 group shadow-md hover:shadow-lg">
                        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                          <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-xl font-black transition-all shrink-0 ${session.completed ? 'bg-green-500/10 text-green-500' : 'bg-primary/5 text-primary'}`}>
+                          <div className={`w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center text-lg sm:text-xl font-black transition-all shrink-0 ${session.completed ? 'bg-accent/15 text-accent' : 'bg-primary/10 text-primary'}`}>
                              {session.completed ? <CheckCircle2 className="w-6 sm:w-8 h-6 sm:h-8" /> : session.topic.name.charAt(0)}
                           </div>
                           <div className="min-w-0">
                              <h4 className="font-bold text-sm sm:text-base group-hover:text-primary transition-colors truncate">{session.topic.name}</h4>
-                             <p className="text-[10px] sm:text-xs text-foreground/40 font-medium truncate">
+                             <p className="text-[10px] sm:text-xs text-foreground/50 font-medium truncate">
                                 {new Date(session.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Sugerido por Ares IA
                              </p>
                           </div>
@@ -236,11 +236,11 @@ export default function StudentDashboard({
                                 const subId = session.topic.document?.subjectId || session.topic.quizzes?.[0]?.subjectId;
                                 if (subId) handleStartQuiz(subId, session.topic.id);
                               }}
-                              className="p-2.5 sm:p-3 bg-secondary/50 text-secondary-foreground rounded-xl hover:bg-accent hover:text-white transition-all"
+                              className="p-2.5 sm:p-3 bg-accent/15 text-accent rounded-xl hover:bg-accent hover:text-cosmos transition-all"
                            >
                              <Zap className="w-4 sm:w-5 h-4 sm:h-5" />
                           </button>
-                          <button className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-3 bg-foreground text-background rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all">
+                          <button className="flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-3 bg-gradient-ares text-white rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all">
                              ESTUDIAR
                           </button>
                        </div>
@@ -248,7 +248,7 @@ export default function StudentDashboard({
                   ))
                 ) : (
                    <div className="lg:col-span-2 glass-panel p-10 sm:p-20 rounded-2xl sm:rounded-[3rem] border border-dashed border-surface-border text-center">
-                     <p className="text-foreground/40 font-medium italic text-sm">
+                     <p className="text-foreground/50 font-medium italic text-sm">
                        {enrollments.length === 0 
                          ? 'No estás inscrito en ninguna materia. ¡Escanea un código QR!'
                          : initialAvailability.length === 0
@@ -256,7 +256,7 @@ export default function StudentDashboard({
                            : 'El plan de estudio se generará al guardar tu disponibilidad.'}
                      </p>
                      {initialAvailability.length === 0 && enrollments.length > 0 && (
-                       <button onClick={() => setView('availability')} className="mt-4 px-6 py-3 bg-primary text-white font-bold rounded-xl hover:scale-105 transition-all text-sm">
+                       <button onClick={() => setView('availability')} className="mt-4 px-6 py-3 bg-gradient-ares text-white font-bold rounded-xl hover:scale-105 transition-all text-sm">
                          Configurar Disponibilidad
                        </button>
                      )}
@@ -269,7 +269,7 @@ export default function StudentDashboard({
           {view === 'medals' && (
             <motion.div key="medals" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
                <header className="mb-6 sm:mb-10">
-                  <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter uppercase">TU LEGADO / LOGROS</h2>
+                  <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter uppercase text-gradient">TU LEGADO / LOGROS</h2>
                   <p className="text-foreground/60 font-medium mt-1 text-sm">Colecciona medallas y demuestra tu disciplina.</p>
                </header>
                <GamificationManager 
@@ -283,30 +283,30 @@ export default function StudentDashboard({
           {view === 'calendar' && (
             <motion.div key="calendar" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                <header className="mb-6 sm:mb-10 text-center">
-                  <h2 className="text-2xl sm:text-4xl font-black tracking-tighter italic">AGENDA INTELIGENTE</h2>
+                  <h2 className="text-2xl sm:text-4xl font-black tracking-tighter italic text-gradient">AGENDA INTELIGENTE</h2>
                   <p className="text-foreground/60 font-medium max-w-lg mx-auto mt-2 text-sm">Ares optimiza tu tiempo automáticamente basándose en tus exámenes.</p>
                </header>
                <div className="grid grid-cols-1 gap-3 sm:gap-4">
                   {sessions.map((session: any) => (
-                      <div key={session.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border flex items-center justify-between border-l-4 border-l-primary/50 group gap-3">
+                      <div key={session.id} className="p-4 sm:p-5 glass-panel rounded-xl sm:rounded-2xl border border-surface-border flex items-center justify-between border-l-4 border-l-primary group gap-3 shadow-md hover:shadow-lg transition-all">
                         <div className="flex gap-3 sm:gap-4 items-center min-w-0">
-                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center font-black shrink-0">{session.topic.name.charAt(0)}</div>
+                            <div className="w-10 h-10 bg-gradient-ares text-white rounded-xl flex items-center justify-center font-black shrink-0">{session.topic.name.charAt(0)}</div>
                             <div className="min-w-0">
                               <p className="text-sm font-bold truncate">{session.topic.name}</p>
-                              <p className="text-[10px] font-bold text-foreground/40 uppercase tracking-widest">{new Date(session.date).toLocaleDateString()}</p>
+                              <p className="text-[10px] font-bold text-foreground/50 uppercase tracking-widest">{new Date(session.date).toLocaleDateString()}</p>
                             </div>
                         </div>
                         <button onClick={() => {
                           const subId = session.topic.document?.subjectId || session.topic.quizzes?.[0]?.subjectId;
                           if (subId) handleStartQuiz(subId);
-                        }} className="p-2 bg-accent/10 text-accent rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0">
+                        }} className="p-2 bg-accent/15 text-accent rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0 hover:bg-accent hover:text-cosmos">
                            <Brain className="w-4 h-4" />
                         </button>
                       </div>
                   ))}
                   {sessions.length === 0 && (
                     <div className="glass-panel p-10 rounded-2xl border border-dashed border-surface-border text-center">
-                      <p className="text-foreground/40 italic text-sm">No hay sesiones programadas. Configura tu disponibilidad para generar tu calendario.</p>
+                      <p className="text-foreground/50 italic text-sm">No hay sesiones programadas. Configura tu disponibilidad para generar tu calendario.</p>
                     </div>
                   )}
                </div>
@@ -322,11 +322,11 @@ export default function StudentDashboard({
           {view === 'scanner' && (
              <motion.div key="scanner" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="flex flex-col items-center">
                 <div className="max-w-sm sm:max-w-md w-full text-center space-y-6 sm:space-y-8">
-                   <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter">ESCANEAR CÓDIGO ARES</h2>
-                   <div id="reader" className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary border-dashed p-3 sm:p-4 flex items-center justify-center relative overflow-hidden shadow-2xl">
+                   <h2 className="text-2xl sm:text-4xl font-black italic tracking-tighter text-gradient">ESCANEAR CÓDIGO ARES</h2>
+                   <div id="reader" className="w-full aspect-square glass-panel rounded-2xl sm:rounded-[3rem] border-2 border-primary/30 border-dashed p-3 sm:p-4 flex items-center justify-center relative overflow-hidden shadow-2xl">
                      <p className="text-primary font-bold animate-pulse text-xs uppercase tracking-widest">Activando Sensor de Visión...</p>
                    </div>
-                   <button onClick={() => setView('overview')} className="w-full sm:w-auto px-10 py-4 bg-surface border border-surface-border text-foreground font-black rounded-2xl">Cancelar</button>
+                   <button onClick={() => setView('overview')} className="w-full sm:w-auto px-10 py-4 bg-surface border-2 border-surface-border text-foreground font-black rounded-2xl hover:border-primary transition-all">Cancelar</button>
                 </div>
              </motion.div>
           )}

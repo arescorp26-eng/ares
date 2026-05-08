@@ -1,28 +1,36 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --primary: #4f46e5;
+  --background: #FDFCEE;
+  --foreground: #1A253A;
+  --primary: #3971b8;
   --primary-foreground: #ffffff;
-  --secondary: #e0e7ff;
-  --secondary-foreground: #3730a3;
-  --accent: #c026d3;
+  --secondary: #687098;
+  --secondary-foreground: #FDFCEE;
+  --accent: #1DE9B6;
+  --accent-foreground: #1A253A;
   --surface: #ffffff;
-  --surface-border: #e2e8f0;
+  --surface-border: #e5e7eb;
+  --sage: #7f898f;
+  --teal: #1DE9B6;
+  --cosmos: #1A253A;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #09090b;
-    --foreground: #fafafa;
-    --primary: #6366f1;
-    --primary-foreground: #ffffff;
-    --secondary: #1e1b4b;
-    --secondary-foreground: #e0e7ff;
-    --accent: #d946ef;
-    --surface: #18181b;
-    --surface-border: #27272a;
+    --background: #1A253A;
+    --foreground: #FDFCEE;
+    --primary: #4a8fd4;
+    --primary-foreground: #1A253A;
+    --secondary: #687098;
+    --secondary-foreground: #1A253A;
+    --accent: #1DE9B6;
+    --accent-foreground: #1A253A;
+    --surface: #232f45;
+    --surface-border: #2d3a52;
+    --sage: #7f898f;
+    --teal: #1DE9B6;
+    --cosmos: #0f1729;
   }
 }
 
@@ -34,10 +42,14 @@
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-surface: var(--surface);
   --color-surface-border: var(--surface-border);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  --color-sage: var(--sage);
+  --color-teal: var(--teal);
+  --color-cosmos: var(--cosmos);
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-comfortaa), ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
@@ -76,23 +88,32 @@
 /* Utilitarios personalizados de Glassmorfismo */
 @layer utilities {
   .glass-panel {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+    background: rgba(253, 252, 238, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px rgba(26, 37, 58, 0.08);
   }
   
   .dark .glass-panel {
-    background: rgba(24, 24, 27, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(35, 47, 69, 0.7);
+    border: 1px solid rgba(253, 252, 238, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
   .text-gradient {
-    background: linear-gradient(to right, var(--primary), var(--accent));
+    background: linear-gradient(135deg, var(--primary), var(--accent));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  .bg-gradient-ares {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+  }
+
+  .bg-gradient-ares-accent {
+    background: linear-gradient(135deg, var(--accent), var(--primary));
   }
 
   /* Safe area insets for notched phones */

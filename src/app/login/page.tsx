@@ -23,8 +23,9 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
       {/* Background Decor */}
-      <div className="absolute top-[-20%] left-[-10%] w-[40rem] h-[40rem] bg-primary opacity-10 blur-[120px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[-20%] right-[-10%] w-[35rem] h-[35rem] bg-accent opacity-10 blur-[130px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-[-20%] left-[-10%] w-[40rem] h-[40rem] bg-primary/20 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-[35rem] h-[35rem] bg-accent/20 blur-[130px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[60rem] h-[60rem] bg-secondary/10 blur-[150px] rounded-full pointer-events-none"></div>
 
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -33,39 +34,39 @@ export default function LoginPage() {
       >
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-primary/40">
-              <Sparkles className="w-8 h-8" />
+            <div className="w-20 h-20 bg-gradient-ares rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-primary/30 rotate-3 hover:rotate-0 transition-transform">
+              <Sparkles className="w-10 h-10" />
             </div>
           </div>
           <h1 className="text-4xl font-black text-gradient">Bienvenido de nuevo</h1>
-          <p className="text-foreground/60 mt-2">Ingresa a tu portal de Ares</p>
+          <p className="text-foreground/60 mt-2 font-medium">Ingresa a tu portal de Ares</p>
         </div>
 
         <div className="glass-panel p-8 rounded-[2rem] border border-surface-border shadow-2xl">
           <form action={handleSubmit} className="space-y-5">
             <div>
-              <label className="text-xs font-bold uppercase tracking-widest text-foreground/40 mb-2 block ml-1">Email Académico</label>
+              <label className="text-xs font-bold uppercase tracking-widest text-primary/60 mb-2 block ml-1">Email Académico</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/30" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/40" />
                 <input 
                   name="email"
                   type="email" 
                   placeholder="tu@correo.com"
-                  className="w-full bg-background/50 border border-surface-border rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                  className="w-full bg-background/50 border-2 border-surface-border rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-medium"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-bold uppercase tracking-widest text-foreground/40 mb-2 block ml-1">Contraseña</label>
+              <label className="text-xs font-bold uppercase tracking-widest text-primary/60 mb-2 block ml-1">Contraseña</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-foreground/30" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/40" />
                 <input 
                   name="password"
                   type="password" 
                   placeholder="••••••••"
-                  className="w-full bg-background/50 border border-surface-border rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                  className="w-full bg-background/50 border-2 border-surface-border rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-medium"
                   required
                 />
               </div>
@@ -84,7 +85,7 @@ export default function LoginPage() {
             <button 
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-2 hover:-translate-y-1 hover:shadow-primary/40 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+              className="w-full py-4 bg-gradient-ares text-white font-black rounded-2xl shadow-xl shadow-primary/25 flex items-center justify-center gap-2 hover:-translate-y-1 hover:shadow-primary/40 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
               {loading ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
