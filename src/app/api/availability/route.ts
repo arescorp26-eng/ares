@@ -40,7 +40,9 @@ export async function POST(req: NextRequest) {
       en.subject.documents.some(doc => doc.topics.length > 0)
     );
 
-    if (!hasTopics) {
+    const hasEvaluations = enrollments.some(en => en.subject.evaluations.length > 0);
+
+    if (!hasTopics && !hasEvaluations) {
       return NextResponse.json({
         success: true,
         message: 'Disponibilidad guardada. Inscríbete en una materia para generar tu plan de estudio.',

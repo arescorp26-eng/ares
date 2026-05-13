@@ -63,10 +63,85 @@ export async function POST(req: NextRequest) {
     }
 
     if (!content || content.trim().length < 50) {
-      return NextResponse.json(
-        { error: 'Esta materia no tiene contenido suficiente para generar un quiz. El profesor debe subir el material primero.' },
-        { status: 400 }
-      );
+      // No hay contenido documental - usar IA para investigar sobre los temas/evaluaciones
+      const subject = await prisma.subject.findUnique({
+        where: { id: subjectId },
+        include: {
+          evaluations: { select: { title: true } },
+          documents: { include: { topics: { select: { name: true } } } }
+        }
+      });
+
+      if (!subject) {
+        return NextResponse.json({ error: 'Materia no encontrada' }, { status: 404 });
+      }
+
+      // Armar contexto con nombres de temas y evaluaciones
+      const topicNames = subject.documents.flatMap(d => d.topics.map(t => t.name));
+      const evalNames = subject.evaluations.map(e => e.title);
+      const allNames = [...new Set([...topicNames, ...evalNames])];
+      
+      if (allNames.length === 0) {
+        return NextResponse.json(
+          { error: 'Esta materia no tiene temas ni evaluaciones. El profesor debe agregar contenido primero.' },
+          { status: 400 }
+        );
+      }
+
+      console.log(`[Quiz] No document content, generating from topic names: ${allNames.join(', ')}`);
+      
+      subjectName = subject.name;
+
+      // Usar IA para generar preguntas sobre los temas sin contenido documental
+      let aiQuiz;
+      try {
+        aiQuiz = await generateQuizFromContent(allNames.join(', ') + '\nTemas de la materia: ' + subjectName, subjectName);
+      } catch (aiError: any) {
+        console.error('[Quiz] AI generation failed:', aiError?.message);
+        return NextResponse.json(
+          { error: 'Error al generar el quiz: ' + (aiError?.message || 'Intenta de nuevo') },
+          { status: 500 }
+        );
+      }
+
+      const quiz = await prisma.quiz.create({
+        data: {
+          title: aiQuiz.title,
+          subjectId,
+          topicId: topicId || null,
+          questions: {
+            create: aiQuiz.questions.map(q => ({
+              text: q.text,
+              explanation: q.explanation,
+              options: {
+                create: q.options.map(o => ({
+                  text: o.text,
+                  isCorrect: o.isCorrect
+                }))
+              }
+            }))
+          }
+        },
+        include: {
+          questions: { include: { options: true } }
+        }
+      });
+
+      const safeQuiz = {
+        id: quiz.id,
+        title: quiz.title,
+        subjectId: quiz.subjectId,
+        questions: quiz.questions.map(q => ({
+          id: q.id,
+          text: q.text,
+          options: q.options.map(o => ({
+            id: o.id,
+            text: o.text,
+          }))
+        }))
+      };
+
+      return NextResponse.json(safeQuiz);
     }
 
     console.log(`[Quiz] Generating for subject "${subjectName}", content length: ${content.length}`);

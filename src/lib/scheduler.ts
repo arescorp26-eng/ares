@@ -43,29 +43,43 @@ export async function generateSmartSchedule(studentId: number) {
 
   enrollments.forEach(en => {
     const subjectName = en.subject.name;
-    
+
     // Tópicos de evaluaciones (con prioridad basada en fecha)
     en.subject.evaluations.forEach(ev => {
       const daysUntil = Math.max(1, (ev.date.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-      
-      ev.topics.forEach(topic => {
+
+      if (ev.topics.length > 0) {
+        ev.topics.forEach(topic => {
+          const weight = ev.weight || 10;
+          const priority = (topic.difficulty * weight) / daysUntil;
+          prioritizedTopics.push({
+            id: topic.id,
+            name: topic.name,
+            priority,
+            estimatedHours: topic.estimatedHours || 2,
+            subjectName,
+            evaluationDate: ev.date
+          });
+        });
+      } else {
+        // Evaluación sin temas: crear bloque de estudio basado en la evaluación
         const weight = ev.weight || 10;
-        const priority = (topic.difficulty * weight) / daysUntil;
+        const totalHours = Math.max(2, (weight / 100) * 10);
+        const priority = weight / daysUntil;
         prioritizedTopics.push({
-          id: topic.id,
-          name: topic.name,
+          id: -ev.id,
+          name: ev.title,
           priority,
-          estimatedHours: topic.estimatedHours || 2,
+          estimatedHours: totalHours,
           subjectName,
           evaluationDate: ev.date
         });
-      });
+      }
     });
 
     // Tópicos de documentos (sin evaluación asociada, prioridad por dificultad)
     en.subject.documents.forEach(doc => {
       doc.topics.forEach(topic => {
-        // Evitar duplicados si ya está en una evaluación
         if (!prioritizedTopics.some(t => t.id === topic.id)) {
           prioritizedTopics.push({
             id: topic.id,
@@ -73,17 +87,57 @@ export async function generateSmartSchedule(studentId: number) {
             priority: topic.difficulty,
             estimatedHours: topic.estimatedHours || 2,
             subjectName,
-            evaluationDate: new Date() // sin fecha, se asume pronto
+            evaluationDate: new Date()
           });
         }
       });
     });
   });
 
+  // 4. Crear topics reales para evaluaciones que no tienen topics vinculados
+  const subjectsMap: Record<number, { id: number; name: string }> = {};
+  for (const en of enrollments) {
+    if (!subjectsMap[en.subjectId]) {
+      subjectsMap[en.subjectId] = { id: en.subjectId, name: en.subject.name };
+    }
+  }
+
+  for (const pt of prioritizedTopics) {
+    if (pt.id >= 0) continue;
+
+    const evalId = -pt.id;
+    const subject = Object.values(subjectsMap).find(s => s.name === pt.subjectName);
+    if (!subject) continue;
+
+    let doc = await prisma.document.findFirst({
+      where: { subjectId: subject.id, title: 'Plan de Estudio Automático' }
+    });
+
+    if (!doc) {
+      doc = await prisma.document.create({
+        data: {
+          subjectId: subject.id,
+          title: 'Plan de Estudio Automático',
+          textContent: `Temas generados automáticamente para ${subject.name}`
+        }
+      });
+    }
+
+    const realTopic = await prisma.topic.create({
+      data: {
+        name: pt.name,
+        difficulty: 3,
+        estimatedHours: pt.estimatedHours,
+        documentId: doc.id,
+        evaluationId: evalId
+      }
+    });
+
+    pt.id = realTopic.id;
+  }
+
   // Ordenar por prioridad descendente
   prioritizedTopics.sort((a, b) => b.priority - a.priority);
-
-  // 4. Algoritmo de distribución (Simpificado para los próximos 14 días)
   const scheduledSessions = [];
   let startDate = startOfDay(new Date());
 
@@ -124,8 +178,7 @@ export async function generateSmartSchedule(studentId: number) {
     }
   }
 
-  // 5. Persistir sesiones en la base de datos
-  // Borrar sesiones futuras no completadas para recalcular
+  // 6. Persistir sesiones en la base de datos
   await prisma.studySession.deleteMany({
     where: {
       studentId,
