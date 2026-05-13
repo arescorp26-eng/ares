@@ -23,45 +23,62 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     let extractedText = '';
-    if (file.type === 'application/pdf') {
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      let parser: any = null;
       try {
         console.log('Starting PDF extraction...');
-        // Use pdf-parse for server-side PDF parsing
         const { PDFParse } = await import('pdf-parse');
-        const parser = new PDFParse({ data: buffer });
+        parser = new PDFParse({ data: buffer });
         const result = await parser.getText();
-        extractedText = result.text;
+        extractedText = result.text || '';
         console.log('PDF extraction success, length:', extractedText.length);
       } catch (pdfError: any) {
         console.error('PDF parsing failed:', pdfError?.message || pdfError);
-        return NextResponse.json({ error: 'Error al leer el PDF: ' + (pdfError?.message || 'desconocido') }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Error al leer el PDF: ' + (pdfError?.message || 'formato no soportado') },
+          { status: 400 }
+        );
+      } finally {
+        if (parser) {
+          try { await parser.destroy(); } catch (_) {}
+        }
       }
     } else {
-      return NextResponse.json({ error: 'Usa formato PDF para esta versión.' }, { status: 400 });
+      return NextResponse.json({ error: 'Solo se aceptan archivos PDF.' }, { status: 400 });
     }
 
-    if (!extractedText || extractedText.trim().length === 0) {
-      return NextResponse.json({ error: 'No se pudo leer el PDF' }, { status: 400 });
+    if (!extractedText || extractedText.trim().length < 50) {
+      return NextResponse.json(
+        { error: 'El PDF está vacío o protegido. Asegúrate de que el PDF contenga texto seleccionable.' },
+        { status: 400 }
+      );
     }
 
-    // Análisis con IA
-    console.log('Starting AI analysis...');
-    const analysis = await analyzeDocumentContent(extractedText);
-    console.log('AI analysis complete:', analysis.title);
+    // Análisis con IA (DeepSeek)
+    console.log('Starting AI analysis with DeepSeek...');
+    let analysis;
+    try {
+      analysis = await analyzeDocumentContent(extractedText);
+      console.log('AI analysis complete:', analysis.title);
+    } catch (aiError: any) {
+      console.error('AI analysis failed:', aiError?.message || aiError);
+      return NextResponse.json(
+        { error: 'Error de IA: ' + (aiError?.message || 'No se pudo analizar el documento') },
+        { status: 500 }
+      );
+    }
 
     let subject;
     if (existingSubjectId) {
-      // Usar materia existente y limpiar datos previos si es necesario
       subject = await prisma.subject.findUnique({ where: { id: existingSubjectId } });
       if (!subject || subject.professorId !== session.user.id) {
-          return NextResponse.json({ error: 'Materia no válida' }, { status: 403 });
+        return NextResponse.json({ error: 'Materia no válida' }, { status: 403 });
       }
-      
-      // Limpiar evaluaciones y temas previos para reemplazarlos con los del nuevo archivo
+
+      // Limpiar evaluaciones y temas previos
       await prisma.evaluation.deleteMany({ where: { subjectId: subject.id } });
       await prisma.topic.deleteMany({ where: { document: { subjectId: subject.id } } });
     } else {
-      // Crear nueva materia
       subject = await prisma.subject.create({
         data: {
           name: analysis.title,
@@ -112,7 +129,10 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error in /api/process-document:', error);
-    return NextResponse.json({ error: 'Error interno al procesar el documento' }, { status: 500 });
+    console.error('Unhandled error in /api/process-document:', error?.message || error);
+    return NextResponse.json(
+      { error: 'Error interno: ' + (error?.message || 'desconocido') },
+      { status: 500 }
+    );
   }
 }

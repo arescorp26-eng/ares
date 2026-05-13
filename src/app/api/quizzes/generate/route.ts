@@ -12,43 +12,83 @@ export async function POST(req: NextRequest) {
 
     const { subjectId, topicId } = await req.json();
 
-    if (!subjectId) return NextResponse.json({ error: 'ID de materia requerido' }, { status: 400 });
+    if (!subjectId) {
+      return NextResponse.json({ error: 'ID de materia requerido' }, { status: 400 });
+    }
 
     // Buscar contenido para alimentar la IA
-    // Prioridad 1: Documento del tema
-    // Prioridad 2: Documentos de la materia
-    let content = "";
-    let subject;
+    let content = '';
+    let subjectName = 'Materia';
 
+    // Primero buscar contenido del tema específico si se indicó
     if (topicId) {
       const topic = await prisma.topic.findUnique({
         where: { id: topicId },
         include: { document: true }
       });
-      content = topic?.document?.textContent || "";
+      if (topic?.document?.textContent) {
+        content = topic.document.textContent;
+      }
     }
 
+    // Si no hay contenido del tema, buscar todos los documentos de la materia
     if (!content) {
-      subject = await prisma.subject.findUnique({
+      const subject = await prisma.subject.findUnique({
         where: { id: subjectId },
-        include: { documents: true }
+        include: {
+          documents: {
+            select: { textContent: true },
+            orderBy: { id: 'desc' },
+            take: 3 // Usar los 3 documentos más recientes
+          }
+        }
       });
-      content = subject?.documents.map(d => d.textContent).join("\n") || "";
+
+      if (!subject) {
+        return NextResponse.json({ error: 'Materia no encontrada' }, { status: 404 });
+      }
+
+      subjectName = subject.name;
+      content = subject.documents
+        .map(d => d.textContent || '')
+        .filter(t => t.length > 0)
+        .join('\n\n');
+    } else {
+      // Obtener el nombre de la materia
+      const subject = await prisma.subject.findUnique({
+        where: { id: subjectId },
+        select: { name: true }
+      });
+      subjectName = subject?.name || 'Materia';
     }
 
-    if (!content || content.length < 50) {
-      return NextResponse.json({ error: 'No hay suficiente contenido para generar un quiz.' }, { status: 400 });
+    if (!content || content.trim().length < 50) {
+      return NextResponse.json(
+        { error: 'Esta materia no tiene contenido suficiente para generar un quiz. El profesor debe subir el material primero.' },
+        { status: 400 }
+      );
     }
 
-    // Generar con IA
-    const aiQuiz = await generateQuizFromContent(content, subject?.name || "Materia");
+    console.log(`[Quiz] Generating for subject "${subjectName}", content length: ${content.length}`);
+
+    // Generar quiz con DeepSeek
+    let aiQuiz;
+    try {
+      aiQuiz = await generateQuizFromContent(content, subjectName);
+    } catch (aiError: any) {
+      console.error('[Quiz] AI generation failed:', aiError?.message);
+      return NextResponse.json(
+        { error: 'Error al generar el quiz: ' + (aiError?.message || 'Intenta de nuevo') },
+        { status: 500 }
+      );
+    }
 
     // Guardar en BD
     const quiz = await prisma.quiz.create({
       data: {
         title: aiQuiz.title,
         subjectId,
-        topicId,
+        topicId: topicId || null,
         questions: {
           create: aiQuiz.questions.map(q => ({
             text: q.text,
@@ -69,10 +109,30 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    return NextResponse.json(quiz);
+    // Devolver quiz SIN revelar las respuestas correctas al cliente
+    const safeQuiz = {
+      id: quiz.id,
+      title: quiz.title,
+      subjectId: quiz.subjectId,
+      questions: quiz.questions.map(q => ({
+        id: q.id,
+        text: q.text,
+        // explanation se oculta hasta que el estudiante responda
+        options: q.options.map(o => ({
+          id: o.id,
+          text: o.text,
+          // isCorrect NO se envía al cliente
+        }))
+      }))
+    };
+
+    return NextResponse.json(safeQuiz);
 
   } catch (error: any) {
-    console.error('Quiz Gen Error:', error);
-    return NextResponse.json({ error: 'Error al generar el examen' }, { status: 500 });
+    console.error('[Quiz] Unhandled error:', error?.message || error);
+    return NextResponse.json(
+      { error: 'Error interno al generar el examen: ' + (error?.message || 'desconocido') },
+      { status: 500 }
+    );
   }
 }

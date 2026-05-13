@@ -3,9 +3,9 @@ import axios, { AxiosError } from 'axios';
 const AI_API_KEY = process.env.AI_API_KEY;
 const MODEL = process.env.AI_MODEL || 'deepseek-chat';
 const API_URL = process.env.AI_API_URL || 'https://api.deepseek.com/v1/chat/completions';
-const TIMEOUT = 45000;
+const TIMEOUT = 60000; // 60s — DeepSeek can be slow
 const MAX_RETRIES = 2;
-const RETRY_DELAY = 1000;
+const RETRY_DELAY = 2000;
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -13,10 +13,16 @@ function sleep(ms: number) {
 
 function sanitizeJSON(raw: string): string {
   let cleaned = raw.trim();
-  // Remove markdown code blocks
+  // Remove markdown code blocks (```json ... ``` or ``` ... ```)
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) {
     cleaned = codeBlockMatch[1].trim();
+  }
+  // Remove any leading/trailing non-JSON chars
+  const jsonStart = cleaned.indexOf('{');
+  const jsonEnd = cleaned.lastIndexOf('}');
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+    cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
   }
   return cleaned;
 }
@@ -26,19 +32,12 @@ function parseAIResponse(content: string): any {
   try {
     return JSON.parse(json);
   } catch (firstError) {
-    // Try to recover common issues
+    // Remove trailing commas
     try {
-      // Remove trailing commas
       const fixed = json.replace(/,\s*([}\]])/g, '$1');
       return JSON.parse(fixed);
     } catch {
-      // Try to fix unescaped quotes
-      try {
-        const fixed = json.replace(/(?<!\\)"([^"]*)(?<!\\)"/g, (m) => m.replace(/"/g, '\\"'));
-        return JSON.parse(fixed);
-      } catch {
-        throw new Error(`IA devolvió JSON inválido. Respuesta: ${json.substring(0, 200)}`);
-      }
+      throw new Error(`IA devolvió JSON inválido. Inicio: ${json.substring(0, 300)}`);
     }
   }
 }
@@ -48,17 +47,24 @@ interface OpenRouterMessage {
   content: string;
 }
 
-async function callOpenRouter(
+async function callDeepSeek(
   messages: OpenRouterMessage[],
   options?: { temperature?: number; maxTokens?: number }
 ) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+  if (!AI_API_KEY) {
+    throw new Error('AI_API_KEY no está configurado en las variables de entorno');
+  }
 
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // Fresh AbortController per attempt
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+
     try {
+      console.log(`[DeepSeek] Attempt ${attempt + 1}/${MAX_RETRIES + 1}...`);
+
       const response = await axios.post(
         API_URL,
         {
@@ -73,6 +79,7 @@ async function callOpenRouter(
             'Content-Type': 'application/json',
           },
           signal: controller.signal,
+          timeout: TIMEOUT,
         }
       );
 
@@ -80,9 +87,10 @@ async function callOpenRouter(
 
       const choice = response.data?.choices?.[0];
       if (!choice?.message?.content) {
-        throw new Error('La IA no devolvió contenido');
+        throw new Error('La IA no devolvió contenido en la respuesta');
       }
 
+      console.log(`[DeepSeek] Success on attempt ${attempt + 1}`);
       return parseAIResponse(choice.message.content);
 
     } catch (error: any) {
@@ -90,60 +98,67 @@ async function callOpenRouter(
       lastError = error;
 
       const status = error?.response?.status;
-      const axiosErr = error as AxiosError;
+      const errorData = error?.response?.data;
 
-      // Rate limit — esperar y reintentar
+      console.error(`[DeepSeek] Attempt ${attempt + 1} failed:`, {
+        status,
+        message: error?.message,
+        data: errorData?.error?.message
+      });
+
+      // Do NOT retry auth/payment errors
+      if (status === 401 || status === 403) {
+        throw new Error('API key de DeepSeek inválida o sin permisos. Verifica AI_API_KEY en .env');
+      }
+      if (status === 402) {
+        throw new Error('Créditos de DeepSeek agotados. Recarga tu cuenta en platform.deepseek.com');
+      }
+
+      // Rate limit — wait longer
       if (status === 429 && attempt < MAX_RETRIES) {
-        console.warn(`[DeepSeek] Rate limited, retrying in ${RETRY_DELAY * (attempt + 1)}ms...`);
-        await sleep(RETRY_DELAY * (attempt + 1) * 2);
+        const waitMs = RETRY_DELAY * (attempt + 1) * 3;
+        console.warn(`[DeepSeek] Rate limited. Waiting ${waitMs}ms...`);
+        await sleep(waitMs);
         continue;
       }
 
-      // Timeout — reintentar
-      if (axiosErr?.code === 'ECONNABORTED' && attempt < MAX_RETRIES) {
-        console.warn(`[DeepSeek] Timeout, retrying (attempt ${attempt + 1})...`);
-        await sleep(RETRY_DELAY);
-        continue;
-      }
-
-      // Server error — reintentar
+      // Server error — retry
       if (status && status >= 500 && attempt < MAX_RETRIES) {
         console.warn(`[DeepSeek] Server error ${status}, retrying...`);
         await sleep(RETRY_DELAY * (attempt + 1));
         continue;
       }
 
-      // Error de red — reintentar
-      if (!status && attempt < MAX_RETRIES) {
-        console.warn(`[DeepSeek] Network error, retrying...`);
+      // Timeout / network error — retry
+      if (
+        (error?.code === 'ECONNABORTED' ||
+          error?.code === 'ERR_CANCELED' ||
+          error?.message?.includes('timeout') ||
+          error?.message?.includes('aborted') ||
+          !status) &&
+        attempt < MAX_RETRIES
+      ) {
+        console.warn(`[DeepSeek] Timeout/network error, retrying (${attempt + 1})...`);
         await sleep(RETRY_DELAY);
         continue;
       }
 
+      // Non-retryable error
       break;
     }
   }
 
+  // Build final error message
   const status = (lastError as any)?.response?.status;
-  const errorData = (lastError as any)?.response?.data;
+  const errorMsg = (lastError as any)?.response?.data?.error?.message;
 
-  if (status === 401 || status === 403) {
-    throw new Error('API key de DeepSeek inválida o sin permisos');
+  if (errorMsg) throw new Error(`Error de DeepSeek: ${errorMsg}`);
+  if (status === 429) throw new Error('Límite de peticiones a DeepSeek alcanzado. Espera un momento.');
+  if ((lastError as AxiosError)?.code === 'ECONNABORTED' || lastError?.message?.includes('aborted')) {
+    throw new Error('DeepSeek tardó demasiado en responder. Intenta con un PDF más corto.');
   }
-  if (status === 429) {
-    throw new Error('Límite de peticiones a la IA alcanzado. Espera un momento.');
-  }
-  if (status === 402) {
-    throw new Error('Créditos de DeepSeek agotados. Recarga tu cuenta.');
-  }
-  if ((lastError as AxiosError)?.code === 'ECONNABORTED') {
-    throw new Error('La IA tardó demasiado en responder. Intenta de nuevo.');
-  }
-  if (errorData?.error?.message) {
-    throw new Error(`Error de IA: ${errorData.error.message}`);
-  }
-
-  throw new Error('La IA no está disponible en este momento. Intenta más tarde.');
+  if (lastError?.message) throw new Error(lastError.message);
+  throw new Error('La IA no está disponible. Intenta más tarde.');
 }
 
 // ─── Interfaces ──────────────────────────────────────────────
@@ -168,37 +183,35 @@ export interface AIQuizResult {
 // ─── Document Analysis ──────────────────────────────────────
 
 export async function analyzeDocumentContent(text: string): Promise<AIAnalysisResult> {
-  if (!AI_API_KEY) {
-    throw new Error('AI_API_KEY no configurado');
-  }
+  const truncatedText = text.substring(0, 12000);
 
   const systemPrompt = `Eres Ares, un Tutor IA experto en análisis académico. Tu función es procesar documentos educativos y extraer información estructurada con precisión.
 
 Reglas estrictas:
-1. Responde ÚNICAMENTE con JSON válido, sin texto adicional.
+1. Responde ÚNICAMENTE con JSON válido, sin texto adicional ni bloques de código markdown.
 2. Identifica todos los temas/unidades y evalúalos por dificultad (1=muy fácil, 5=muy difícil).
 3. Estima horas de estudio realistas por tema (mínimo 1 hora).
-4. Si hay fechas de exámenes, usa formato YYYY-MM-DD. Si no hay, usa fechas futuras razonables.
+4. Si hay fechas de exámenes, usa formato YYYY-MM-DD. Si no hay, usa fechas futuras a 30-60 días de hoy.
 5. Extrae al menos 5 términos para el glosario.
 6. El resumen debe ser de 3-5 oraciones cubriendo los puntos clave.
 7. Cada evaluación debe tener un peso (%). Si no se especifica, distribuye equitativamente.
 8. Usa nombres descriptivos en español para todo.`;
 
-  const result = await callOpenRouter([
+  const result = await callDeepSeek([
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
-      content: `Analiza el siguiente contenido académico y devuelve JSON con esta estructura exacta:
+      content: `Analiza el siguiente contenido académico y devuelve SOLO JSON con esta estructura exacta (sin texto adicional):
 {
   "title": "Título descriptivo de la materia",
   "summary": "Resumen de 3-5 oraciones",
   "glossary": [{ "term": "Término", "definition": "Definición breve" }],
-  "evaluations": [{ "title": "Nombre", "date": "YYYY-MM-DD", "weight": número }],
-  "topics": [{ "name": "Nombre del tema", "difficulty": 1-5, "estimatedHours": número }]
+  "evaluations": [{ "title": "Nombre del examen", "date": "YYYY-MM-DD", "weight": 25 }],
+  "topics": [{ "name": "Nombre del tema", "difficulty": 3, "estimatedHours": 4 }]
 }
 
-CONTENIDO:
-${text.substring(0, 12000)}`,
+CONTENIDO DEL DOCUMENTO:
+${truncatedText}`,
     },
   ]);
 
@@ -217,36 +230,32 @@ export async function generateQuizFromContent(
   text: string,
   subjectName: string
 ): Promise<AIQuizResult> {
-  if (!AI_API_KEY) {
-    throw new Error('AI_API_KEY no configurado');
-  }
-
-  const questionCount = Math.max(5, Math.min(10, Math.floor(text.length / 300)));
+  const truncatedText = text.substring(0, 8000);
+  const questionCount = Math.max(5, Math.min(10, Math.floor(truncatedText.length / 500)));
 
   const systemPrompt = `Eres Ares, un tutor IA especializado en crear exámenes educativos de alta calidad.
 
 Reglas estrictas:
 1. Responde ÚNICAMENTE con JSON válido, sin markdown ni texto adicional.
 2. Genera exactamente ${questionCount} preguntas de opción múltiple.
-3. Cada pregunta debe tener 4 opciones (A, B, C, D).
-4. Solo 1 opción correcta por pregunta.
-5. Las opciones incorrectas deben ser verosímiles (distractores creíbles).
-6. Cada pregunta debe tener una explicación clara de la respuesta correcta.
-7. Varía la dificultad: incluye preguntas fáciles, medias y difíciles.
-8. Enfócate en comprensión y aplicación, no en memorización.
-9. Las preguntas deben ser en español.`;
+3. Cada pregunta debe tener exactamente 4 opciones.
+4. Solo 1 opción correcta por pregunta (isCorrect: true).
+5. Las opciones incorrectas deben ser verosímiles.
+6. Cada pregunta debe tener una explicación clara.
+7. Varía la dificultad: fáciles, medias y difíciles.
+8. Todas las preguntas y opciones en español.`;
 
-  const result = await callOpenRouter([
+  const result = await callDeepSeek([
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
       content: `Crea un examen de ${questionCount} preguntas sobre "${subjectName}" basado en este contenido:
 
-${text.substring(0, 10000)}
+${truncatedText}
 
-Responde con este JSON:
+Responde SOLO con este JSON (sin texto adicional):
 {
-  "title": "Título del examen",
+  "title": "Examen de ${subjectName}",
   "questions": [
     {
       "text": "Pregunta aquí",
@@ -256,16 +265,15 @@ Responde con este JSON:
         { "text": "Opción C", "isCorrect": false },
         { "text": "Opción D", "isCorrect": false }
       ],
-      "explanation": "Por qué la respuesta correcta es la correcta"
+      "explanation": "Explicación de por qué B es correcta"
     }
   ]
 }`,
     },
-  ]);
+  ], { temperature: 0.5 });
 
-  // Validate quiz structure
   if (!result.questions || !Array.isArray(result.questions) || result.questions.length === 0) {
-    throw new Error('La IA no generó preguntas válidas');
+    throw new Error('La IA no generó preguntas válidas. Intenta de nuevo.');
   }
 
   const validQuestions = result.questions.filter(
@@ -273,11 +281,11 @@ Responde con este JSON:
       q.text &&
       Array.isArray(q.options) &&
       q.options.length >= 2 &&
-      q.options.some((o: any) => o.isCorrect)
+      q.options.some((o: any) => o.isCorrect === true)
   );
 
   if (validQuestions.length === 0) {
-    throw new Error('La IA generó preguntas sin respuestas correctas');
+    throw new Error('La IA generó preguntas sin respuestas correctas marcadas. Intenta de nuevo.');
   }
 
   return {
@@ -305,16 +313,12 @@ export async function generatePersonalizedStudyPlan(
   availableHoursPerDay: number,
   daysUntilExam: number
 ): Promise<SmartStudyPlan> {
-  if (!AI_API_KEY) {
-    throw new Error('AI_API_KEY no configurado');
-  }
-
   const systemPrompt = `Eres Ares, un coach de estudio y tutor personal. Creas planes de estudio personalizados, 
 efectivos y motivadores. Usas técnicas de aprendizaje comprobadas (spaced repetition, active recall, pomodoro).
 
 Responde ÚNICAMENTE con JSON válido.`;
 
-  const result = await callOpenRouter([
+  const result = await callDeepSeek([
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
@@ -328,7 +332,7 @@ Restricciones:
 - ${daysUntilExam} días hasta el examen
 - Priorizar materias con examen más cercano y mayor dificultad
 
-Responde con este JSON:
+Responde SOLO con este JSON:
 {
   "dailySchedule": [
     { 
