@@ -190,13 +190,14 @@ export default function ProfessorDashboard({ subjects = [] }: { subjects?: any[]
                    />
                  </div>
 
-                {editMode === 'manual' ? (
-                  <ManualPlanBuilder 
-                    subjectId={subjectId!} 
-                    initialTopics={activeSubject.documents?.[0]?.topics?.map((t: any) => ({ name: t.name, difficulty: t.difficulty, estimatedHours: t.estimatedHours }))}
-                    initialEvaluations={activeSubject.evaluations?.map((ev: any) => ({ title: ev.title, date: new Date(ev.date).toISOString().split('T')[0], weight: ev.weight }))}
-                    onComplete={() => { router.refresh(); resetWizard(); setView('list'); }}
-                  />
+                 {editMode === 'manual' ? (
+                   <ManualPlanBuilder 
+                     subjectId={subjectId!} 
+                     subjectName={subjectName}
+                     initialTopics={activeSubject.documents?.flatMap((d: any) => d.topics || []).map((t: any) => ({ name: t.name, difficulty: t.difficulty, estimatedHours: t.estimatedHours }))}
+                     initialEvaluations={activeSubject.evaluations?.map((ev: any) => ({ title: ev.title, date: new Date(ev.date).toISOString().split('T')[0], weight: ev.weight }))}
+                     onComplete={() => { router.refresh(); resetWizard(); setView('list'); }}
+                   />
                 ) : (
                   <div className="space-y-6">
                       <h3 className="text-lg sm:text-xl font-black text-center mb-4 sm:mb-6 italic uppercase">Actualizar plan con PDF</h3>

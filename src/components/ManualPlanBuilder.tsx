@@ -6,14 +6,19 @@ import { motion } from 'framer-motion';
 
 interface ManualPlanBuilderProps {
   subjectId: number;
+  subjectName?: string;
   initialTopics?: any[];
   initialEvaluations?: any[];
   onComplete: (data: any) => void;
 }
 
-export default function ManualPlanBuilder({ subjectId, initialTopics, initialEvaluations, onComplete }: ManualPlanBuilderProps) {
-  const [topics, setTopics] = useState<any[]>(initialTopics || [{ name: '', difficulty: 5, estimatedHours: 2 }]);
-  const [evaluations, setEvaluations] = useState<any[]>(initialEvaluations || [{ title: '', date: '', weight: 20 }]);
+export default function ManualPlanBuilder({ subjectId, subjectName, initialTopics, initialEvaluations, onComplete }: ManualPlanBuilderProps) {
+  const [topics, setTopics] = useState<any[]>(
+    initialTopics && initialTopics.length > 0 ? initialTopics : [{ name: '', difficulty: 5, estimatedHours: 2 }]
+  );
+  const [evaluations, setEvaluations] = useState<any[]>(
+    initialEvaluations && initialEvaluations.length > 0 ? initialEvaluations : [{ title: '', date: '', weight: 20 }]
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,13 +29,31 @@ export default function ManualPlanBuilder({ subjectId, initialTopics, initialEva
   const removeEval = (idx: number) => setEvaluations(evaluations.filter((_, i) => i !== idx));
 
   const handleSave = async () => {
+    const validTopics = topics.filter(t => t.name && t.name.trim());
+    const validEvaluations = evaluations.filter(ev => ev.title && ev.title.trim() && ev.date);
+    
+    if (validTopics.length === 0 && validEvaluations.length === 0) {
+      setError('Agrega al menos un tema o evaluación antes de guardar.');
+      return;
+    }
+
+    if (validEvaluations.some(ev => !ev.date || isNaN(new Date(ev.date).getTime()))) {
+      setError('Una o más evaluaciones tienen fecha inválida.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const resp = await fetch('/api/subjects', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectId, topics, evaluations }),
+        body: JSON.stringify({ 
+          subjectId, 
+          name: subjectName || undefined,
+          topics: validTopics, 
+          evaluations: validEvaluations 
+        }),
         credentials: 'include'
       });
       

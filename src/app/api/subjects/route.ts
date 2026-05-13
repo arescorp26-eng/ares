@@ -59,47 +59,48 @@ export async function PATCH(req: NextRequest) {
 
     // 2. Limpiar datos anteriores (Solo si se envían nuevos para evitar borrado accidental)
     if (evaluations) {
-      await prisma.evaluation.deleteMany({ where: { subjectId } });
-      if (evaluations.length > 0) {
+      await prisma.evaluation.deleteMany({ where: { subjectId: Number(subjectId) } });
+      const validEvaluations = evaluations.filter((ev: any) => 
+        ev.title && ev.title.trim() && ev.date && new Date(ev.date).getTime() > 0
+      );
+      if (validEvaluations.length > 0) {
         await prisma.evaluation.createMany({
-          data: evaluations.map((ev: any) => ({
-            title: ev.title,
+          data: validEvaluations.map((ev: any) => ({
+            title: ev.title.trim(),
             date: new Date(ev.date),
-            weight: parseFloat(ev.weight),
-            subjectId
+            weight: parseFloat(ev.weight) || 20,
+            subjectId: Number(subjectId)
           }))
         });
       }
     }
 
     if (topics) {
-      // Borramos temas que NO tengan documento asociado (los manuales)
-      // Opcional: Borrar todos si el profesor quiere re-hacer el plan IA
+      const validTopics = topics.filter((t: any) => t.name && t.name.trim());
       await prisma.topic.deleteMany({ 
         where: { 
-          document: { subjectId } 
+          document: { subjectId: Number(subjectId) } 
         } 
       });
       
-      if (topics.length > 0) {
-        // Encontrar o crear un documento "Manual" para agrupar temas
+      if (validTopics.length > 0) {
         let manualDoc = await prisma.document.findFirst({
-          where: { subjectId, title: 'Plan Manual' }
+          where: { subjectId: Number(subjectId), title: 'Plan Manual' }
         });
 
         if (!manualDoc) {
           manualDoc = await prisma.document.create({
             data: {
-              subjectId,
+              subjectId: Number(subjectId),
               title: 'Plan Manual',
-              textContent: topics.map((t: any) => t.name).join(', ')
+              textContent: validTopics.map((t: any) => t.name).join(', ')
             }
           });
         }
 
         await prisma.topic.createMany({
-          data: topics.map((t: any) => ({
-            name: t.name,
+          data: validTopics.map((t: any) => ({
+            name: t.name.trim(),
             difficulty: parseInt(t.difficulty) || 5,
             estimatedHours: parseFloat(t.estimatedHours) || 2,
             documentId: manualDoc!.id
